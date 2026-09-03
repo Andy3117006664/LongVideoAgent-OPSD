@@ -24,6 +24,7 @@ machine because it includes environment-specific diagnostics.
 [config] mode=ot alpha=0.1 gpus=1,2,3,6
 [config] train_examples=500 validation_examples=300 steps=50 batch=4 rollout_n=4
 [config] observation=subtitle_local_cache grounding=local_bm25_cache remote_api=false
+[otopsd] static_ot_cache=empty; signal_source=local_loopback_paired_scorer
 [otopsd] ema_decay=0.99 refresh_interval=1 scorer=loopback
 [otopsd] refresh_ok=50/50 refresh_skipped=0
 [ot] finite_records=276 applied_records=276 applied_tokens=29982

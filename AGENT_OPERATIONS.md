@@ -102,10 +102,12 @@ CUDA_VISIBLE_DEVICES=0 nohup "$BASE/env/bin/python" \
 
 4. 运行 `tools/run_lva_opsd.sh`。下面的八卡命令是 **smoke/plumbing 模板**（它故意使用空 OT cache，scorer 与 0 号卡共存）；按机器实际路径改写：
 
-> **不要用这段空 cache 配置声称复现 formal OT 效果。** 正式实验必须使用与
-> rollout 同轨迹生成的非空 OT cache，删除 `ALLOW_EMPTY_OT_CACHE=1`，先记录
-> cache 的 SHA256，再运行完整 validation。空 cache 只用于检查 8 卡启动、EMA
-> snapshot、scorer reload 和退出流程。
+> **不要用这段空 cache 配置声称复现 formal OT 效果。** 正式实验必须提供
+> 可审计的非零 transition 信号：要么使用与 rollout 同轨迹生成的非空 OT
+> replay cache（删除 `ALLOW_EMPTY_OT_CACHE=1` 并记录 cache SHA256），要么
+> 明确启用并记录本地 loopback paired scorer。当前 formal pilot 采用后者，
+> 产生了 276 条 online records；本段空 cache 命令本身仍只用于检查 8 卡启动、
+> EMA snapshot、scorer reload 和退出流程。
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
