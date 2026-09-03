@@ -42,8 +42,10 @@ finite observation-transition records, applied 29,982 target tokens, and
 reported successful EMA refreshes on all 50 updates.
 
 These are pilot-scale measurements, not evidence of a statistically reliable
-improvement.  See `experiments/formal_eta_50/` for the sanitized launcher
-logs and aggregate audits.
+improvement.  See `experiments/formal_eta_50/` for the aggregate audits,
+machine-readable metrics, and the public `sanitized_trace.md`. The full
+launcher logs remain local to the training machine; the public trace records
+the relevant configuration and final status without raw rollout content.
 
 ## Checkpoint
 

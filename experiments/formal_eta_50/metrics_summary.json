@@ -12,6 +12,13 @@
   "student_teacher": "actor_student_plus_lagged_ema_teacher",
   "observation_mode": "subtitle_local_cache",
   "privileged_visual_branch": false,
+  "ot_cache_mode": "nonempty_transition_cache",
+  "ot_null_mode": "matched_mask",
+  "ot_target_span": "next_action",
+  "ot_mode": "multiplier",
+  "ot_negate_signal": true,
+  "ot_multiplier_bound": 0.5,
+  "ot_clip": 2.0,
   "baseline": {
     "train_strict_accuracy": 0.14875,
     "train_n": 800,
@@ -36,5 +43,11 @@
     "val50_mcnemar_p_two_sided": 0.860050065908581,
     "val50_native_accuracy_delta": 0.0
   },
-  "interpretation": "pilot-scale; no statistically reliable gain established"
+  "interpretation": "pilot-scale; no statistically reliable gain established",
+  "hf_repository": "Andynsn/longvideoagent-opsd-qwen2.5-3b-lora",
+  "hf_prefix": "step_50",
+  "hf_revision": "389104ba865e01a93f845397f8612f168f6c70c5",
+  "hf_commit_url": "https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora/commit/389104ba865e01a93f845397f8612f168f6c70c5",
+  "student_adapter_sha256": "1fbbab3290b1b42f01c6d2ebdb1babd87650ca59310d259780d97155bb94f869",
+  "teacher_adapter_sha256": "8218f4b99eaa3abd0c7764e99e1203116e751cf71f785539228ae39ded1cd03b"
 }

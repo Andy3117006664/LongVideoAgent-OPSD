@@ -4,6 +4,14 @@
 
 训练、评测、安装与快速开始相关说明，请参见 [📚 Docs](https://longvideoagent.github.io/LongVideoAgent/)。模型权重已发布在 [Hugging Face](https://huggingface.co/longvideoagent/)。
 
+## 🔬 OT-OPSD 可复现实验包
+
+本仓库同时包含 LongVideoAgent 的 observation-transition self-distillation
+（OT-OPSD）transition/EMA 核心、可复现实验记录，以及面向协作 agent 的维护手册：
+[AGENT_OPERATIONS.md](./AGENT_OPERATIONS.md) 和 [OPSD_RELEASE.md](./OPSD_RELEASE.md)。
+50-step 结果是 pilot，尚无统计显著收益；8 卡短跑仅验证训练与 EMA refresh 链路，
+不是 benchmark。checkpoint 单独放在[公开 HF 仓库](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora)。
+
 ## 🚀 最新消息
 • `[2026/03/22]:` 🤗 我们在 [Hugging Face](https://huggingface.co/longvideoagent/longvideoagent-qwen2.5-7b) 发布了 **LongVideoAgent-Qwen2.5-7B** 模型权重。
 

@@ -28,12 +28,12 @@ GitHub 与 HF 都是公开仓库。任何 token、`.env`、私钥、机器凭据
 | `matched_500train_300val_formal_eta_50_s20260903` | OT-OPSD，alpha=0.1，EMA decay=0.99，`rollout.n=4`，50 steps，4 张训练卡 + 1 张 scorer 卡 | train strict 0.15250 (n=800)，val@50 strict 0.19667，native val accuracy 0.19333；paired McNemar p=0.869/0.860；276 个 finite `e_obs`，29,982 个 applied tokens，50/50 refresh 成功 |
 | `lva_opsd_repeat8_50_s20260903` | 已因验证窗口过长而停止（未进入训练更新）；不作为结果发布 | 仅保留作业记录，不要当作成功 run |
 | `lva_opsd_repeat8_canary10_s20260903` | 已因串行验证窗口过长而停止（约 3/32，未进入训练更新） | 仅用于定位验证吞吐瓶颈，不作为结果 |
-| `lva_opsd_repeat8_smoke2_s20260903` | **已完成**；seed 20260906，2 steps，16 train / 2 val，8 张训练卡，scorer 与 0 号卡共存 | exit 0；step 0/1/2 reload 成功；2/2 refresh 成功；step-2 student/teacher 已取回并准备上传 HF（若外部出站审查放行）。OT cache 为空且两步均 `skipped_no_effect=1`，所以只证明 plumbing，不证明方法效果 |
+| `lva_opsd_repeat8_smoke2_s20260903` | **已完成**；seed 20260906，2 steps，16 train / 2 val，8 张训练卡，scorer 与 0 号卡共存 | exit 0；step 0/1/2 reload 成功；2/2 refresh 成功；step-2 student/teacher 已公开到 HF `smoke2/step_2/`（revision `f6fc82ca0fc384cf405dcea3e1c6a87be2a9ccfa`）。OT cache 为空且两步均 `skipped_no_effect=1`，所以只证明 plumbing，不证明方法效果 |
 
 正式 run 的完整 aggregate audit 在 `experiments/formal_eta_50/`。8 卡 smoke
 的配置、脱敏日志与机器可读摘要在 `experiments/repeat8_smoke2/`；其 checkpoint
-计划位于 HF `smoke2/step_2/`，不要覆盖正式 checkpoint 的 `step_50/`；若上传
-被安全审查阻断，仍以本地 `hf_smoke2/` 和远端 run 目录为暂存副本。pilot 的
+已位于公开 HF 的 `smoke2/step_2/`，不要覆盖正式 checkpoint 的 `step_50/`。
+HF revision 与 adapter hash 已写入摘要。pilot 的
 小幅提升没有统计显著性，后续报告必须保留这个结论。
 
 ## 分支与提交规则
@@ -65,9 +65,21 @@ pip install -r requirements_for_newversion.txt
 $LVA_ROOT/
   repo/                       # 本仓库 checkout
   models/Qwen2.5-3B-Instruct/ # 由使用者按上游条款自行准备
-  data/                       # 使用者有权使用的 LongTVQA/cache
+  data/
+    LongTVQA_plus/LongTVQA_plus_subtitle_clip_level.json
+    frames/none/              # subtitle-only smoke 可为空目录
+    frames/none.json          # subtitle-only smoke 的空 bbox JSON
+    parquet_5choice_500/train.parquet
+    parquet_5choice_val_300/train.parquet
+    local_grounding_bm25_v1.json
+    subtitle_observation_proxy_all4198_v3.json
+    cache/<nonempty-ot-records>.json
   env/                        # 运行环境（不上传）
 ```
+
+`SUBS`（clip-level subtitle JSON）是 launcher 的硬性必需项；`FRAME_DIR` 与
+`BBOX_JSON` 也会写入配置。上面的 `frames/none*` 只适用于 subtitle-only
+smoke，启用真实 visual-query 时必须换成有授权的帧目录和 bbox 文件。
 
 训练只使用本地 cache；默认不会请求远程视觉 API。先把路径替换成当前机器的绝对路径，再执行 `DRY_RUN=1` 预检。
 
@@ -88,13 +100,20 @@ CUDA_VISIBLE_DEVICES=0 nohup "$BASE/env/bin/python" \
   > "$OUT/scorer.log" 2>&1 < /dev/null &
 ```
 
-4. 运行 `tools/run_lva_opsd.sh`。八卡模板（scorer 与 0 号卡共存）如下；按机器实际路径改写：
+4. 运行 `tools/run_lva_opsd.sh`。下面的八卡命令是 **smoke/plumbing 模板**（它故意使用空 OT cache，scorer 与 0 号卡共存）；按机器实际路径改写：
+
+> **不要用这段空 cache 配置声称复现 formal OT 效果。** 正式实验必须使用与
+> rollout 同轨迹生成的非空 OT cache，删除 `ALLOW_EMPTY_OT_CACHE=1`，先记录
+> cache 的 SHA256，再运行完整 validation。空 cache 只用于检查 8 卡启动、EMA
+> snapshot、scorer reload 和退出流程。
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
 LVA_ROOT="$BASE" MODE=ot OUT="$OUT" \
 TRAIN="$BASE/data/parquet_5choice_500/train.parquet" \
 VAL="$BASE/data/parquet_5choice_val_300/train.parquet" \
+SUBS="$BASE/data/LongTVQA_plus/LongTVQA_plus_subtitle_clip_level.json" \
+FRAME_DIR="$BASE/data/frames/none" BBOX_JSON="$BASE/data/frames/none.json" \
 OBSERVATION_CACHE="$BASE/data/subtitle_observation_proxy_all4198_v3.json" \
 GROUNDING_CACHE="$BASE/data/local_grounding_bm25_v1.json" \
 OT_CACHE="$BASE/data/cache/empty_ot.json" ALLOW_EMPTY_OT_CACHE=1 \
@@ -115,7 +134,7 @@ OT_OPSD_EMA_DECAY=0.99 OT_OPSD_REQUIRE=1 \
 DRY_RUN=1 bash tools/run_lva_opsd.sh
 ```
 
-预检通过后，把 `DRY_RUN=1` 改成 `DRY_RUN=0`，并将 stdout/stderr 保存在该 run 目录。训练结束必须检查 `status=0`、`otopsd/refresh_ok`、snapshot `READY` 文件和 aggregate audit；scorer 停止前先保存其日志。
+预检通过后，把 `DRY_RUN=1` 改成 `DRY_RUN=0`，并将 stdout/stderr 保存在该 run 目录。训练结束必须检查 `status=0`、`otopsd/refresh_ok`、snapshot `READY` 文件和 aggregate audit；scorer 停止前先保存其日志。正式 run 还必须确认 `ot_opd/applied_records>0` 且 `ot_opd/skipped_no_effect` 不占满所有更新。
 
 当前 launcher 的 `TOTAL_STEPS` 上限是 50。要超过 50 steps，先在独立 branch 实现并验证 checkpoint/resume 语义，再开新 run；不要简单删除上限或覆盖旧目录。现有 LoRA snapshot 不是完整 optimizer checkpoint，默认不能无缝续训，只能以新 seed/新输出目录重跑，除非 resume 功能已被单独审计。
 

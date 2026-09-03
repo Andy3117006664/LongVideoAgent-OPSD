@@ -16,6 +16,16 @@ Hong Kong University of Science and Technology
 
 This is the official repository for [arXiv](https://arxiv.org/abs/2512.20618). Training and evaluation code are now available, and model weights are released on [Hugging Face](https://huggingface.co/longvideoagent/). This README provides a compact code overview, while the [📚 Docs](https://longvideoagent.github.io/LongVideoAgent/) contain the full setup, workflow, and argument details.
 
+## 🔬 OT-OPSD reproducibility bundle
+
+This fork also contains the validated LongVideoAgent observation-transition
+self-distillation (OT-OPSD) transition/EMA core, its reproducibility records,
+and an agent-facing maintenance guide: [AGENT_OPERATIONS.md](./AGENT_OPERATIONS.md)
+and [OPSD_RELEASE.md](./OPSD_RELEASE.md). The 50-step result is a pilot with
+no statistically significant gain; the bounded 8-GPU run is a plumbing smoke
+test only. Checkpoint artifacts are tracked separately in the [public HF
+repository](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora).
+
 ## 🚀 Latest News
 • `[2026/03/22]:` 🤗 We released the **LongVideoAgent-Qwen2.5-7B** model weights on [Hugging Face](https://huggingface.co/longvideoagent/longvideoagent-qwen2.5-7b).
 
