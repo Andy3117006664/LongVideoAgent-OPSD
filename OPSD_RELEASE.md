@@ -62,7 +62,9 @@ the base weights are not redistributed here.
 The source tree is based on the public LongVideoAgent `newversion` snapshot
 and the verl stack.  Please consult the upstream project and dependency
 licenses before redistributing or deploying this bundle.  The upstream
-snapshot did not include an explicit LICENSE file in the captured tree; this
-repository therefore makes no blanket license claim for third-party files.
+snapshot did not include an explicit LICENSE file or a preserved upstream
+commit ID in the captured tree; use this repository's commit history and the
+upstream project history to pin a checkout. This repository therefore makes no
+blanket license claim for third-party files.
 The OT-OPSD additions and experiment notes are provided for research
 reproducibility by the repository owner.
