@@ -20,25 +20,33 @@ GitHub 与 HF 都是公开仓库。任何 token、`.env`、私钥、机器凭据
 
 当前发布的正式 run 使用 subtitle/local-cache observation，`OT_ONLINE_PRIVILEGED=false`；因此不要把它描述成已经完成的递归 belief AgentOPSD、StepOPSD 或 privileged visual OPSD。要做这些扩展，必须另开 feature branch、定义 answer-free privileged cache，并增加对应审计。
 
-## 已完成结果与正在运行的结果
+## 已完成结果与作业记录
 
 | run | 状态/配置 | 主要结果 |
 |---|---|---|
 | `lva_baseline_all4198_50_s20260903` | baseline，50 steps，500 train/300 val，4 张 RTX 6000D | train strict 0.14875 (n=800)，val@50 strict 0.19000 |
 | `matched_500train_300val_formal_eta_50_s20260903` | OT-OPSD，alpha=0.1，EMA decay=0.99，`rollout.n=4`，50 steps，4 张训练卡 + 1 张 scorer 卡 | train strict 0.15250 (n=800)，val@50 strict 0.19667，native val accuracy 0.19333；paired McNemar p=0.869/0.860；276 个 finite `e_obs`，29,982 个 applied tokens，50/50 refresh 成功 |
-| `lva_opsd_repeat8_50_s20260903` | **当前运行中**；seed 20260904，8 张卡均加入训练，scorer 与 0 号卡共存 | 结束后从远端 `outputs/lva_opsd_repeat8_50_s20260903` 读取，不要提前宣称结果 |
+| `lva_opsd_repeat8_50_s20260903` | 已因验证窗口过长而停止（未进入训练更新）；不作为结果发布 | 仅保留作业记录，不要当作成功 run |
+| `lva_opsd_repeat8_canary10_s20260903` | 已因串行验证窗口过长而停止（约 3/32，未进入训练更新） | 仅用于定位验证吞吐瓶颈，不作为结果 |
+| `lva_opsd_repeat8_smoke2_s20260903` | **已完成**；seed 20260906，2 steps，16 train / 2 val，8 张训练卡，scorer 与 0 号卡共存 | exit 0；step 0/1/2 reload 成功；2/2 refresh 成功；step-2 student/teacher 已取回并准备上传 HF（若外部出站审查放行）。OT cache 为空且两步均 `skipped_no_effect=1`，所以只证明 plumbing，不证明方法效果 |
 
-正式 run 的完整 aggregate audit 在 `experiments/formal_eta_50/`。pilot 的小幅提升没有统计显著性，后续报告必须保留这个结论。
+正式 run 的完整 aggregate audit 在 `experiments/formal_eta_50/`。8 卡 smoke
+的配置、脱敏日志与机器可读摘要在 `experiments/repeat8_smoke2/`；其 checkpoint
+计划位于 HF `smoke2/step_2/`，不要覆盖正式 checkpoint 的 `step_50/`；若上传
+被安全审查阻断，仍以本地 `hf_smoke2/` 和远端 run 目录为暂存副本。pilot 的
+小幅提升没有统计显著性，后续报告必须保留这个结论。
 
 ## 分支与提交规则
 
-1. `main` 只放可复现、已审计的代码和文档；不要直接在 `main` 上试验。
+1. `main` 只放可复现、已审计的代码和文档；不要直接在 `main` 上试验，也不要 force-push。
 2. 新方法用 `feature/<topic>`，新实验/参数用 `exp/<date>-<name>`（例如 `exp/20260903-opsd-repeat8`）。本地 Codex 工作分支可使用 `codex/<topic>`。
-3. 一个实验一个唯一 `RUN_NAME`/输出目录；禁止覆盖已有 `outputs/*`。
-4. 合并前必须提交：配置快照、seed、数据/缓存 hash、模型基座名称、GPU 数、step 数、聚合指标、失败原因（若失败）以及脱敏后的日志。
-5. PR 只包含源码/脚本/文档/小型 aggregate JSON；checkpoint 放 HF，不把大文件塞进 GitHub。
-6. 合并前运行 secret scan，并检查 `git diff --stat`；发现凭据或原始数据立即停止上传。
-7. 稳定版本打 tag（例如 `v0.1-opsd-transition`），不要重写公开历史。
+3. 一条 branch 同一时间只指定一个维护者/agent。不同机器不要共同向同一实验 branch 推送；若要接手，先让原维护者推完并在 PR/issue 留下最新 commit SHA，再从该 SHA 新建接力 branch。
+4. 开工前执行 `git fetch origin`，从最新 `origin/main` 建 branch；完成后 push branch、开 PR，由另一位维护者检查指标、许可证和 secret scan，再 squash/merge 到 `main`。
+5. 一个实验一个唯一 `RUN_NAME`/输出目录；禁止覆盖已有 `outputs/*`。
+6. 合并前必须提交：配置快照、seed、数据/缓存 hash、模型基座名称、GPU 数、step 数、聚合指标、失败原因（若失败）以及脱敏后的日志。
+7. PR 只包含源码/脚本/文档/小型 aggregate JSON；checkpoint 放 HF，不把大文件塞进 GitHub。
+8. 合并前运行 secret scan，并检查 `git diff --stat`；发现凭据或原始数据立即停止上传。
+9. 稳定版本打 tag（例如 `v0.1-opsd-transition`），不要重写公开历史。
 
 ## 在新机器上接手
 
@@ -130,7 +138,8 @@ DRY_RUN=1 bash tools/run_lva_opsd.sh
 
 ### 上传 Hugging Face
 
-默认只上传最终 step 的两个 adapter 目录：
+默认只上传最终 step 的两个 adapter 目录。正式 run 保留在 `step_50/`；
+其他实验必须使用独立前缀，例如 `runs/<RUN_NAME>/step_<N>/`，不得覆盖已有路径：
 
 ```text
 step_50/student/{adapter_config.json, adapter_model.safetensors, ...}
@@ -139,7 +148,15 @@ step_50/teacher/{adapter_config.json, adapter_model.safetensors, ...}
 
 同时上传 `README.md`、训练配置、base model 指针、step/seed/EMA 信息和 SHA256。中间 0..50 快照约 5.8 GB，除非明确需要做轨迹分析，否则不上传。HF repo 必须保持 public，但 token 只能通过本机登录状态或安全环境变量传入，不能写入命令日志。
 
-建议用 HF CLI/API 的 `upload_folder`，上传前确认目标是 `Andynsn/longvideoagent-opsd-qwen2.5-3b-lora`，并在本地列出待上传文件清单。
+建议用 HF CLI/API 的 `upload_folder`，上传前确认目标是 `Andynsn/longvideoagent-opsd-qwen2.5-3b-lora`，并在本地列出待上传文件清单。上传后必须重新列远端文件、确认 repo 为 public、下载或读取 manifest，并比对两个 safetensors 的 SHA256；把 HF commit/revision 写回实验 README。
+
+### 停机前的最短闭环
+
+1. 等 launcher 明确写出 `status=0`，确认 final step 的 student/teacher 都有 `READY`。
+2. 计算两个 adapter 的 SHA256，先上传 HF final step 和 manifest；确认远端文件大小/hash 后，再处理 GitHub 文档。
+3. 从日志只保留配置、step 指标、refresh 和退出行，去掉绝对路径、token、原始 prompt/answer；把 `README.md`、`metrics_summary.json` 和脱敏日志推到实验 branch。
+4. 开 PR 或在交接记录中写清 Git commit、HF revision、未上传的本地数据、失败/中止作业和下一步。
+5. 只停止本 run 的 scorer/worker PID，重新检查 GPU、端口和进程；不要用宽泛的 `pkill`。
 
 ## 合作者/Agent 的工作协议
 
@@ -151,7 +168,8 @@ step_50/teacher/{adapter_config.json, adapter_model.safetensors, ...}
 
 ## 下一步研究计划
 
-1. 先收集 `lva_opsd_repeat8_50_s20260903` 的 8 卡结果，与已有 matched baseline 做同 seed/同 cache 的 paired audit。
-2. 若 transition 信号稳定，再实现 `OT_ONLINE_PRIVILEGED=true` 的 answer-free visual cache，并单独比较 `e_obs`、`e_priv` 和无 privileged 分支。
-3. 再开 branch 实现递归 belief/StepOPSD（显式 belief state、step-level credit、长程回溯），补充长度分桶、工具调用类型和多 seed 统计。
-4. 只有在至少多个 seed、完整验证集和通过泄漏审计后，才把结果写成方法收益；当前 pilot 只能报告“未观察到统计显著提升”。
+1. 先在 `feature/parallel-validation` 解决 8 卡作业仍被单样本串行验证拖慢的问题，并用固定 16-train/32-val canary 做吞吐与一致性审计；不要把 smoke 的 58 秒更新耗时外推为完整实验时长。
+2. 从最新 `main` 开 `exp/<date>-transition-multiseed`，在非空 online OT 信号、完整 300-val 和至少 3 个 seed 下复现 matched baseline/OT-OPSD；报告 paired bootstrap/McNemar、长度分桶和工具调用分桶。
+3. 在 `feature/privileged-visual-opsd` 实现 `OT_ONLINE_PRIVILEGED=true` 的 answer-free visual cache，单独比较 `e_obs`、`e_priv` 和无 privileged 分支，并做答案泄漏审计。
+4. 在独立 `feature/recursive-belief-stepopsd` 实现递归 belief/StepOPSD：显式 belief state、step-level credit、长程回溯；先写单测与最小 canary，再开正式实验。
+5. 只有在多个 seed、完整验证集和泄漏审计通过后，才把结果写成方法收益；当前 50-step pilot 只能报告“未观察到统计显著提升”，8 卡 smoke 只能报告“训练/EMA refresh 链路通过”。
