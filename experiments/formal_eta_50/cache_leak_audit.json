@@ -1,0 +1,70 @@
+{
+  "cache": {
+    "clip_entries": 4198,
+    "coverage": 1.0,
+    "dataset_clips_missing": 0,
+    "dataset_unique_clips": 686,
+    "declared_count": 4198
+  },
+  "combined": {
+    "any_choice_exact_rate_over_rows": 0.16375,
+    "any_choice_exact_substring": 131,
+    "cache_hit": 800,
+    "gold_bigram_containment_mean": 0.00875,
+    "gold_exact_rate_over_gold_text": 0.0,
+    "gold_exact_rate_over_rows": 0.0,
+    "gold_exact_substring": 0,
+    "gold_text_available": 800,
+    "rows": 800
+  },
+  "grounding": {
+    "combined": {
+      "qid_coverage": 1.0,
+      "qid_hit": 800,
+      "rows": 800,
+      "uid_coverage": 1.0,
+      "uid_hit": 800,
+      "unique_clips": 686
+    },
+    "declared_count": 26562,
+    "train": {
+      "qid_coverage": 1.0,
+      "qid_hit": 500,
+      "rows": 500,
+      "uid_coverage": 1.0,
+      "uid_hit": 500,
+      "unique_clips": 467
+    },
+    "used_ground_truth_clip": false,
+    "val": {
+      "qid_coverage": 1.0,
+      "qid_hit": 300,
+      "rows": 300,
+      "uid_coverage": 1.0,
+      "uid_hit": 300,
+      "unique_clips": 219
+    }
+  },
+  "train": {
+    "any_choice_exact_rate_over_rows": 0.152,
+    "any_choice_exact_substring": 76,
+    "cache_hit": 500,
+    "gold_bigram_containment_mean": 0.012,
+    "gold_exact_rate_over_gold_text": 0.0,
+    "gold_exact_rate_over_rows": 0.0,
+    "gold_exact_substring": 0,
+    "gold_text_available": 500,
+    "rows": 500
+  },
+  "val": {
+    "any_choice_exact_rate_over_rows": 0.18333333333333332,
+    "any_choice_exact_substring": 55,
+    "cache_hit": 300,
+    "gold_bigram_containment_mean": 0.0033333333333333335,
+    "gold_exact_rate_over_gold_text": 0.0,
+    "gold_exact_rate_over_rows": 0.0,
+    "gold_exact_substring": 0,
+    "gold_text_available": 300,
+    "rows": 300
+  }
+}

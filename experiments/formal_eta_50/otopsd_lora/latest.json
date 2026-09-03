@@ -1,0 +1,35 @@
+{
+  "ema_decay": 0.99,
+  "mode": "ema_actor",
+  "scorer": {
+    "base_model": "$LVA_ROOT/models/Qwen2.5-3B-Instruct",
+    "ema_decay": 0.99,
+    "metadata": {
+      "base_model": "$LVA_ROOT/models/Qwen2.5-3B-Instruct",
+      "ema_decay": 0.99,
+      "snapshot_mode": "ema_actor",
+      "student_adapter": "$LVA_ROOT/outputs/matched_500train_300val_formal_eta_50_s20260903/otopsd_lora/step_50/student",
+      "student_step": 50,
+      "teacher_adapter": "$LVA_ROOT/outputs/matched_500train_300val_formal_eta_50_s20260903/otopsd_lora/step_50/teacher",
+      "teacher_step": 50
+    },
+    "ok": true,
+    "privileged_cache": "",
+    "privileged_cache_sha256": null,
+    "reload": "adapter_in_place",
+    "snapshot_mode": "ema_actor",
+    "status": "ready",
+    "student_adapter": "$LVA_ROOT/outputs/matched_500train_300val_formal_eta_50_s20260903/otopsd_lora/step_50/student",
+    "student_adapter_sha256": "ee1c7e1a05c8f5c70085daca",
+    "student_step": 50,
+    "teacher_adapter": "$LVA_ROOT/outputs/matched_500train_300val_formal_eta_50_s20260903/otopsd_lora/step_50/teacher",
+    "teacher_adapter_sha256": "c1ab37f01002a623798bb295",
+    "teacher_step": 50,
+    "tokenizer_fingerprint": "314b2ebc92253ef2eb86b92e",
+    "version": 50
+  },
+  "student_adapter": "$LVA_ROOT/outputs/matched_500train_300val_formal_eta_50_s20260903/otopsd_lora/step_50/student",
+  "student_step": 50,
+  "teacher_adapter": "$LVA_ROOT/outputs/matched_500train_300val_formal_eta_50_s20260903/otopsd_lora/step_50/teacher",
+  "teacher_step": 50
+}

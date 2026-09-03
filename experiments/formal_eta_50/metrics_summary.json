@@ -1,0 +1,40 @@
+{
+  "experiment": "lv_ot_opsd_formal_pilot",
+  "date": "2026-09-03",
+  "base_model": "Qwen2.5-3B-Instruct",
+  "train_examples": 500,
+  "validation_examples": 300,
+  "training_steps": 50,
+  "rollout_n": 4,
+  "max_turns": 2,
+  "alpha": 0.1,
+  "ema_decay": 0.99,
+  "student_teacher": "actor_student_plus_lagged_ema_teacher",
+  "observation_mode": "subtitle_local_cache",
+  "privileged_visual_branch": false,
+  "baseline": {
+    "train_strict_accuracy": 0.14875,
+    "train_n": 800,
+    "val50_strict_accuracy": 0.19,
+    "val50_native_accuracy": 0.19333333333333333
+  },
+  "ot_opsd": {
+    "train_strict_accuracy": 0.1525,
+    "train_n": 800,
+    "val50_strict_accuracy": 0.19666666666666666,
+    "val50_native_accuracy": 0.19333333333333333,
+    "finite_observation_transition_records": 276,
+    "applied_records": 276,
+    "applied_tokens": 29982,
+    "ema_refresh_ok_steps": 50,
+    "ema_refresh_total_steps": 50
+  },
+  "paired": {
+    "train_strict_accuracy_delta": 0.00375,
+    "train_mcnemar_p_two_sided": 0.869049970834203,
+    "val50_strict_accuracy_delta": 0.006666666666666667,
+    "val50_mcnemar_p_two_sided": 0.860050065908581,
+    "val50_native_accuracy_delta": 0.0
+  },
+  "interpretation": "pilot-scale; no statistically reliable gain established"
+}
