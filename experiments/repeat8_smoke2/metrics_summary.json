@@ -37,7 +37,8 @@
   "optimizer_elapsed_seconds": 58,
   "interpretation": "8-GPU plumbing smoke only; empty OT cache means no OT efficacy claim is possible.",
   "remote_output": "$LVA_ROOT/outputs/lva_opsd_repeat8_smoke2_s20260903",
-  "published_hf_prefix": "smoke2/step_2",
+  "planned_hf_prefix": "smoke2/step_2",
+  "hf_upload_status": "not_uploaded_pending_external_review",
   "student_adapter_sha256": "eb1d3de7c1a7d3d75a2f69eec846335ff2b983cb1469ae6181f96d96d1622f53",
   "teacher_adapter_sha256": "c73c315c5d3f2c7794eddd0af641d349c5d83d1767c1be60bb848d12a31969e9"
 }

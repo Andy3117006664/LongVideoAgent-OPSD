@@ -30,5 +30,7 @@ not be compared with the 50-step formal pilot.
   intentionally empty
 
 Raw rollout/validation JSONL and local datasets are deliberately not public.
-The public bundle contains this aggregate description, filtered audit logs,
-and the final adapters under the HF `smoke2/step_2/` prefix.
+The GitHub bundle contains this aggregate description and filtered audit logs.
+The step-2 adapters are staged locally for the HF `smoke2/step_2/` prefix;
+their public upload is pending external egress review. The formal public HF
+release remains under `step_50/`.
