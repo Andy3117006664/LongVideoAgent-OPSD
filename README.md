@@ -1,5 +1,7 @@
 # 🎬LongVideoAgent: Multi-Agent Reasoning with Long Videos
 
+> LTS result update (2026-09-21): [latest verified results and checkpoint status](experiments/lts-20260921/README.md). New checkpoint upload is pending LES access.
+
 <div align="center">
 
  [中文](./README_zh.md) | [📚 Docs](https://longvideoagent.github.io/LongVideoAgent/) | [🤗 Hugging Face](https://huggingface.co/longvideoagent/) | [Models](https://huggingface.co/longvideoagent/models) | [Project Page](https://longvideoagent.github.io/) | [Arxiv](https://arxiv.org/abs/2512.20618)

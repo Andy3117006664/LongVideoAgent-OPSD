@@ -1,0 +1,32 @@
+{
+  "planner_base_model": "Qwen/Qwen2.5-3B-Instruct",
+  "inspector_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+  "checkpoint_step": 100,
+  "native_fsdp_world_size": 16,
+  "lora_rank": 8,
+  "lora_alpha": 16,
+  "seed": 20260909,
+  "sampling": "greedy",
+  "n": 1,
+  "max_assistant_turns": 3,
+  "response_tokens": 1024,
+  "observation_tokens": 256,
+  "frames_per_request": 8,
+  "validation_batch_size": 16,
+  "unique_questions_per_arm": 300,
+  "videos": 102,
+  "execution_rows_per_arm_including_padding": 304,
+  "grounding": "shared ASR/BM25",
+  "candidate_space": "full video",
+  "arms": {
+    "A1": "no time hint",
+    "A2": "exact normalized-seconds prefix plus A1 prompt"
+  },
+  "identical_guard_in_both_arms": "For Action C, use exactly one of <answer>a0</answer>, <answer>a1</answer>, <answer>a2</answer>, or <answer>a3</answer>, with lowercase a and no other text inside the tags.",
+  "input_files_sha256": {
+    "assets/converted/lvbench_a1.parquet": "462a20c6e3b89dcbb27676c40d0150f9befb404cb8bb748e5b7a5a3873cd5540",
+    "assets/converted/lvbench_a2.parquet": "e7dba6aa152c24a831431bb8e698d5bddc21457c7ca124524a7a2ec4f4604af1"
+  },
+  "scorer_sha256": "ba4879547b66c77ecaf40388ffd0dba8a60511bbfc9c52be25b5483f3480e017",
+  "missing_or_invalid_answer": "incorrect; denominator remains 300"
+}
