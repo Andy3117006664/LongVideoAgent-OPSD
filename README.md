@@ -1,5 +1,7 @@
 # 🎬LongVideoAgent: Multi-Agent Reasoning with Long Videos
 
+> LTS result update (2026-09-21): [latest verified results and checkpoint status](experiments/lts-20260921/README.md). [Verified LTS checkpoint release](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora/blob/ffdf1eaadf75f8224274fbe4167e8ab0dedffc9c/LTS_RELEASE_20260921.md) is available on Hugging Face.
+
 <div align="center">
 
  [中文](./README_zh.md) | [📚 Docs](https://longvideoagent.github.io/LongVideoAgent/) | [🤗 Hugging Face](https://huggingface.co/longvideoagent/) | [Models](https://huggingface.co/longvideoagent/models) | [Project Page](https://longvideoagent.github.io/) | [Arxiv](https://arxiv.org/abs/2512.20618)

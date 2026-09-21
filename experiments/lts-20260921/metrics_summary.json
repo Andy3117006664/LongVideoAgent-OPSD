@@ -1,0 +1,120 @@
+{
+  "schema": "lts_results_snapshot_v1",
+  "snapshot_date": "2026-09-21",
+  "evaluation_trial": "lvbench_a1a2_formatguard300_20260921",
+  "evaluation_only": true,
+  "training_updates_in_lvbench_trial": 0,
+  "checkpoint": {
+    "training_trial": "opsd16_topk_ref_full100_20260914_v5",
+    "global_step": 100,
+    "native_world_size": 16
+  },
+  "lvbench": {
+    "rows": 300,
+    "videos": 102,
+    "wins": 85,
+    "losses": 28,
+    "ties": 187,
+    "delta_a2_minus_a1": 0.19,
+    "cluster_bootstrap_95pct": [
+      0.12333333333333334,
+      0.2596491228070175
+    ],
+    "bootstrap_unit": "video; resample all within-video questions together, question-weighted accuracy",
+    "bootstrap_seed": 20260909,
+    "bootstrap_repetitions": 10000,
+    "A1": {
+      "correct": 57,
+      "accuracy": 0.19,
+      "invalid_answer_rate": 0.2966666666666667,
+      "questions_with_tool_failure_rate": 0.17,
+      "native_format_gated_accuracy": 0.19333333333333333,
+      "inspector_attempts": 374,
+      "http_requests": 279,
+      "inspector_failures": 95,
+      "verified_returned_frames": 1160,
+      "http_failures_with_unknown_frame_cost": 0,
+      "mean_http_requests": 0.93,
+      "mean_verified_returned_frames": 3.8666666666666667,
+      "temporal_annotation_counts": {
+        "interval": 250,
+        "point": 49,
+        "invalid": 1
+      },
+      "frame_in_reference_question_rate": 0.152,
+      "mean_max_requested_scope_iou": 0.04965467146524678,
+      "verified_frames_in_reference": 174,
+      "point_questions_with_verified_frames": 35,
+      "mean_point_frame_distance_given_frames_seconds": 1603.2646374193243,
+      "point_requested_scope_contains_hint_rate": 0.10204081632653061,
+      "mean_trajectory_wall_seconds": 17.28924132823944,
+      "mean_first_hit_attempt_given_hit": 1.2105263157894737
+    },
+    "A2": {
+      "correct": 114,
+      "accuracy": 0.38,
+      "invalid_answer_rate": 0.21666666666666667,
+      "questions_with_tool_failure_rate": 0.13,
+      "native_format_gated_accuracy": 0.38333333333333336,
+      "inspector_attempts": 373,
+      "http_requests": 286,
+      "inspector_failures": 87,
+      "verified_returned_frames": 2174,
+      "http_failures_with_unknown_frame_cost": 0,
+      "mean_http_requests": 0.9533333333333334,
+      "mean_verified_returned_frames": 7.246666666666667,
+      "temporal_annotation_counts": {
+        "interval": 250,
+        "point": 49,
+        "invalid": 1
+      },
+      "frame_in_reference_question_rate": 0.776,
+      "mean_max_requested_scope_iou": 0.7531262028850768,
+      "verified_frames_in_reference": 1638,
+      "point_questions_with_verified_frames": 37,
+      "mean_point_frame_distance_given_frames_seconds": 3.15076416348783,
+      "point_requested_scope_contains_hint_rate": 0.673469387755102,
+      "mean_trajectory_wall_seconds": 21.171276425520578,
+      "mean_first_hit_attempt_given_hit": 1.0103092783505154
+    },
+    "cost_scope": "300 retained traces only; returned frames verified; timed-out/failed HTTP frame work is unknown, not zero",
+    "temporal_metric_scope": "post-run only: IoU/frame-overlap rates use positive-duration intervals; point hints use frame distance and requested-scope containment; malformed/reversed annotations are flagged without correction. All 300 questions remain in accuracy/cost. Temporal hit does not prove semantic evidence correctness.",
+    "scorer_sha256": "ba4879547b66c77ecaf40388ffd0dba8a60511bbfc9c52be25b5483f3480e017"
+  },
+  "latest_completed_training": {
+    "trial": "opsd16_topk_ref_coef010_confirmation_20260915_v1",
+    "global_step": 150,
+    "resume_global_step": 100,
+    "method": "v5 frozen-reference top-k OPSD; coefficient 0.10 after step100",
+    "native_development_correct": 60,
+    "native_development_n": 300,
+    "native_development_accuracy": 0.2,
+    "confirmation_evaluation_started": false,
+    "observation_time_utc": "2026-09-15T12:47:01Z",
+    "checkpoint150_complete_at_observation": true
+  },
+  "earlier_development_comparisons": [
+    {
+      "name": "fixed step50",
+      "correct": 57,
+      "n": 300
+    },
+    {
+      "name": "v5 step100",
+      "correct": 65,
+      "n": 300
+    },
+    {
+      "name": "v5 coefficient0.10 first step150 run",
+      "correct": 70,
+      "n": 300
+    }
+  ],
+  "limitations": [
+    "LVBench uses the same 300 development questions repeatedly; this is not an untouched holdout or a generalization claim.",
+    "A2 supplies normalized temporal hints to the Planner; Inspector receives neither labels nor answer keys.",
+    "The LVBench score is not comparable to the separate native development score used for training selection.",
+    "The later training rerun scored 60/300; the earlier 70/300 must not be assigned to that rerun.",
+    "No new GPU evaluation was performed during publication. Both remote native checkpoints were inspected, exported and verified tensor-by-tensor; this confirms weight equivalence, not trajectory equivalence across runtimes."
+  ]
+}

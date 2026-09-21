@@ -1,0 +1,26 @@
+{
+  "publication_date": "2026-09-21",
+  "local_archive_files_rehashed": 2109,
+  "all_sizes_and_sha256_match": true,
+  "paired_unique_rows": 300,
+  "recomputed_correct": {
+    "A1": 57,
+    "A2": 114
+  },
+  "recomputed_wins_losses_ties": [
+    85,
+    28,
+    187
+  ],
+  "original_final_audit_sha256": "5753ae590391ed3ba1ca5f929af5df08d97ad230d1ff46fc8c718d88fd56dffe",
+  "original_paired_results_sha256": "02a4c52f1fc2386a5e7d8c2f0464f280cc8e54a86ec0847b13656961cbb81d12",
+  "original_baseline_comparison_sha256": "79cfd1300341316748e5cd1e8e90166fa2e23de71df29d0ede46a6a32d2eb87a",
+  "training_rerun_manifest_sha256": "4f617ffda81f75829edb54b7a9c88fce6ea13131b5d04b25dbef26a36109dbd7",
+  "published_scope": "GitHub: aggregate results, configuration, verified export inventory and pinned HF download links. HF: inference adapter/tokenizer archive. No raw prompts, media, benchmark dumps, credentials or base weights.",
+  "remote_checkpoint_bytes_retrieved_and_hashed": true,
+  "all_archive_entries_sha256_equal_verified_local_files": true,
+  "hf_archive_remote_sha256_verified": true,
+  "hf_revision": "ffdf1eaadf75f8224274fbe4167e8ab0dedffc9c",
+  "lora_tensors_bitwise_verified_per_checkpoint": 504,
+  "frozen_base_slices_bitwise_verified_per_checkpoint": 6960
+}
