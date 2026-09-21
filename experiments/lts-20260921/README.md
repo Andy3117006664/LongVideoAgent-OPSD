@@ -39,11 +39,10 @@ Inspector receives no answer labels or direct temporal annotations.
 - [checkpoint_manifest.json](checkpoint_manifest.json): evaluated native-checkpoint inventory.
 - [SHA256SUMS](SHA256SUMS): hashes of this publication bundle.
 
-**New checkpoints are not uploaded yet.** They remain on LTS pending an
-authenticated LES connection. The companion HF repository is
-[Andynsn/longvideoagent-opsd-qwen2.5-3b-lora](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora).
-Its earlier step50/smoke2 adapters are not substitutes for these checkpoints.
-The native step100 checkpoint needs a verified export before it can be called
-a portable PEFT adapter. No base-model weights or raw evaluation dumps are
-included here. This result snapshot does not update the older pilot trainer
-in the repository or claim that it already reproduces the LTS runtime.
+**Checkpoint release uploaded and verified.** [Download the complete inference-adapter archive](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora/resolve/ffdf1eaadf75f8224274fbe4167e8ab0dedffc9c/lts-20260921.zip?download=true) or read the [HF release card](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora/blob/ffdf1eaadf75f8224274fbe4167e8ab0dedffc9c/LTS_RELEASE_20260921.md).
+
+HF revision: `ffdf1eaadf75f8224274fbe4167e8ab0dedffc9c`. Archive SHA256: `f3140a4cb91dba4bba7265667516ff3dbe825d3734498ab0cc2f2512c0c39eae`.
+
+Extract `lts-20260921.zip`, then run `shasum -a 256 -c SHA256SUMS` inside `lts-20260921/`. The archive includes checkpoint subdirectories, configs, tokenizer assets, aggregate results and verification reports. It contains inference adapters, not base weights or full optimizer/RNG/scheduler training-resume state.
+
+Both native 16-rank FSDP checkpoints were exported to portable LoRA adapters. Each passed exact comparisons for 504 LoRA tensors and 6,960 frozen-base slices, with no precision conversion. Serialization was reloaded and checked. No new GPU inference was run; tensor equality does not guarantee identical trajectories under a different runtime. This snapshot preserves the source provenance and does not relabel the older pilot trainer as the current LTS runtime.

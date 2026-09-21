@@ -115,6 +115,6 @@
     "A2 supplies normalized temporal hints to the Planner; Inspector receives neither labels nor answer keys.",
     "The LVBench score is not comparable to the separate native development score used for training selection.",
     "The later training rerun scored 60/300; the earlier 70/300 must not be assigned to that rerun.",
-    "No new GPU evaluation or remote checkpoint inspection was performed during publication."
+    "No new GPU evaluation was performed during publication. Both remote native checkpoints were inspected, exported and verified tensor-by-tensor; this confirms weight equivalence, not trajectory equivalence across runtimes."
   ]
 }
