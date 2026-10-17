@@ -1,0 +1,290 @@
+"""On-policy Planner OPSD with a metadata-only packet MMD auxiliary.
+
+One optimizer update consumes only newly generated student trajectories. All
+candidate draws precede the update; no replay epochs or stale-policy scores.
+Frozen Inspector/compactor calls occur only inside the original agent rollout.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import random
+from dataclasses import asdict
+from pathlib import Path
+
+from .objective import (INSPECTION_PREFIX, candidate_spans, hindsight_messages,
+                        packet_coefficient)
+
+
+def configure_baseline(source: Path, *, inspector_endpoint: str, compactor_endpoint: str):
+    """The captured BM25/Inspector contract; only the Planner is trained."""
+    values = {
+        "AGENT_LLM_BACKEND": "api", "AGENT_API_USE_MESSAGES": "0",
+        "AGENT_LLM_API_BASE": "http://127.0.0.1:1/v1", "AGENT_LLM_API_KEY": "local",
+        "AGENT_LLM_MODEL": "Qwen3-8B", "AGENT_MLLM_BACKEND": "openai",
+        "AGENT_LLM_MAX_TOKENS": "4096", "AGENT_LLM_CONTEXT_LIMIT": "40960",
+        "AGENT_LLM_TEMPERATURE": "0.0", "AGENT_LLM_TIMEOUT": "600",
+        "AGENT_LEGACY_HISTORY_MAX_BLOCKS": "0", "AGENT_LEGACY_HISTORY_MAX_CHARS": "0",
+        "VIDEOSEAL_VISUAL_RETRIEVE_CLASS": "videoseal.tools.visual_tools:VisualRetrieveAliasTool",
+        "VIDEOSEAL_DISABLE_TIME_REFERENCE": "1", "VIDEOSEAL_STRICT_FINAL_GATE": "1",
+        "MLLM_BACKEND": "openai", "MLLM_MAX_TOKENS": "4096", "MLLM_TIMEOUT": "300",
+        "MLLM_RETRY_TIMES": "1", "MLLM_RETRY_DELAY": "0",
+        "VISUAL_INSPECT_BACKEND": "openai", "VISUAL_INSPECT_API_BASE": inspector_endpoint,
+        "VISUAL_INSPECT_API_KEY": "local", "VISUAL_INSPECT_MODEL": "Qwen2.5-VL-7B-Instruct",
+        "VISUAL_INSPECT_EXCLUSIVE_OUTPUT": "1", "VISUAL_INSPECT_PRESERVE_UNCERTAINTY": "0",
+        "VISUAL_RETRIEVE_SUM_BACKEND": "openai",
+        "VISUAL_RETRIEVE_SUM_API_BASE": compactor_endpoint,
+        "VISUAL_RETRIEVE_SUM_API_KEY": "local", "VISUAL_RETRIEVE_SUM_MODEL": "Qwen3-8B",
+        "VISUAL_RETRIEVE_SUM_MAX_TOKENS": "2048", "VISUAL_RETRIEVE_SUM_TEMPERATURE": "0.1",
+        "VISUAL_RETRIEVE_SUMMARY_PROMPT_FILE": str(source / "research/prompts/fixed30_lossless_compactor_v1.txt"),
+        "SEMANTIC_RETRIEVE_MIX": "bm25", "SEMANTIC_RETRIEVE_TOPK": "40",
+        "VISUAL_RETRIEVE_TOPK": "30", "RETRIEVE_SUMMARY_ENABLED": "1",
+        "RETRIEVE_SUMMARY_MAX_SPANS": "100", "VISUAL_RETRIEVE_RETURN_SPANS": "1",
+        "VISUAL_RETRIEVE_LOG_SPANS": "1", "RETRIEVAL_PRIORITY_CHANNEL": "0", "INSPECT_PENDING_SLOT": "0",
+        "INSPECT_GLOBAL_ORDER": "1", "INSPECT_MAX_TOTAL_IMAGES": "64",
+        "VISUAL_INSPECT_MAX_TOTAL_IMAGES": "64", "INSPECT_FPS": "2",
+        "INSPECT_MAX_LONG_EDGE": "1280", "VISUAL_INSPECT_MAX_LONG_EDGE": "1280",
+        "VISUAL_INSPECT_DYNAMIC_MAX_LONG_EDGE": "1", "VISUAL_INSPECT_TOTAL_PIXELS": "20971520",
+        "VISUAL_INSPECT_MIN_PIXELS": "12544", "VISUAL_INSPECT_EDGE_MULTIPLE": "32",
+        "INSPECT_VLM_MAX_TOKENS": "4096", "INSPECT_VLM_TEMPERATURE": "0.1",
+        "VISUAL_INSPECT_RETURN_FRAME_METADATA": "1", "MAX_STEPS": "16",
+        "AGENT_FORCE_LAST_STEP_VISUAL_INSPECT": "1", "AGENT_ENABLE_LAST_STEP_VISUAL_INSPECT_FALLBACK": "1",
+        "AGENT_ENABLE_MAX_STEP_VISUAL_INSPECT_FALLBACK": "1",
+        "AGENT_LAST_STEP_VISUAL_INSPECT_PROMPT_MODE": "mcq", "AGENT_PARSE_FAILURE_FALLBACK_TO_C": "0",
+        "CLEAN_FRAMES": "0", "CLEAN_FRAMES_ASYNC": "1",
+    }
+    for name in ("VISUAL_INSPECT_FRAME_SELECTION", "INSPECT_FRAME_SELECTION", "INSPECT_VLM_SYSTEM_PROMPT",
+                 "INSPECT_VLM_SYSTEM_PROMPT_FILE", "VISUAL_INSPECT_PROMPT", "VISUAL_INSPECT_PROMPT_FILE",
+                 "VISUAL_INSPECT_SYSTEM_PROMPT_FILE", "AGENT_PLANNER_NO_THINK"):
+        os.environ.pop(name, None)
+    os.environ.update(values)
+    return values
+
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_tasks(path: Path, heldout: Path, *, allow_shared_videos: bool = False) -> list[dict]:
+    """Read an answer-free task manifest, rejecting gold fields and overlap."""
+    held = json.loads(heldout.read_text())
+    if isinstance(held, dict):
+        held = held.get("records", held.get("rows", held.get("mapping", [])))
+    held_uids = {str(r[key]) for r in held for key in ("sample_uid", "qid") if r.get(key)}
+    held_questions = {r["question_sha256"] for r in held if r.get("question_sha256")}
+    held_videos = {str(r[key]) for r in held for key in ("original_video_id", "video_id") if r.get(key)}
+    allowed = {"uid", "video_id", "question", "video_path", "visual_index", "subtitle_path",
+               "summary_dir", "summary_file", "benchmark", "video_duration_sec"}
+    result = []
+    for line in path.read_text().splitlines():
+        if not line.strip():
+            continue
+        task = json.loads(line)
+        if set(task) - allowed:
+            raise ValueError(f"task manifest has unexpected fields: {sorted(set(task) - allowed)}")
+        if not all(task.get(k) for k in ("uid", "video_id", "question", "video_path", "visual_index")):
+            raise ValueError("incomplete training task")
+        uid = str(task["uid"])
+        if uid in held_uids or uid.rsplit(":", 1)[-1] in held_uids:
+            raise ValueError("training UID overlaps the fixed300 evaluation")
+        if hashlib.sha256(str(task["question"]).encode()).hexdigest() in held_questions:
+            raise ValueError("training question overlaps the fixed300 evaluation")
+        video_keys = {str(task["video_id"]), Path(task["video_path"]).stem,
+                      Path(task["video_path"]).resolve().stem}
+        if not allow_shared_videos and video_keys & held_videos:
+            raise ValueError("training video overlaps the fixed300 evaluation")
+        if not Path(task["video_path"]).is_file() or not Path(task["visual_index"]).exists():
+            raise FileNotFoundError("training video/index is unavailable")
+        result.append(task)
+    if not result or len({str(t["uid"]) for t in result}) != len(result):
+        raise ValueError("empty or duplicate-UID task manifest")
+    return result
+
+
+def media_spec(task):
+    import cv2
+    from .packets import MediaSpec
+    cap = cv2.VideoCapture(str(task["video_path"]))
+    try:
+        if not cap.isOpened():
+            raise ValueError("cannot open training media")
+        fps = float(cap.get(cv2.CAP_PROP_FPS))
+        count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width, height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if not math.isfinite(fps) or fps <= 0 or count <= 0 or min(width, height) <= 0:
+            raise ValueError("complete positive FPS/frame-count/size metadata required")
+        duration = count / fps
+        # The original reader gives VIDEO_DURATION_SEC precedence over probe
+        # duration. rollout.py sets that variable from this optional task field.
+        try:
+            override = float(task.get("video_duration_sec"))
+        except (ValueError, TypeError):
+            override = 0.0
+        if override > 0:
+            duration = override
+        return MediaSpec(media_id=str(task["video_id"]), duration_s=duration,
+                         source_fps=fps, width=width, height=height, frame_count=count)
+    finally:
+        cap.release()
+
+
+def append(path: Path, row: dict):
+    with path.open("a") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--tasks", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--inspector-endpoint", required=True)
+    parser.add_argument("--compactor-endpoint", required=True)
+    parser.add_argument("--steps", type=int, default=10)
+    parser.add_argument("--max-attempts", type=int, default=30)
+    parser.add_argument("--records-per-step", type=int, default=1)
+    parser.add_argument("--max-steps", type=int, default=16)
+    parser.add_argument("--max-context", type=int, default=40960)
+    parser.add_argument("--rollout-tokens", type=int, default=4096)
+    parser.add_argument("--candidate-tokens", type=int, default=384)
+    parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--packet-weight", type=float, default=0.05)
+    parser.add_argument("--bandwidth", type=float, default=1.0)
+    parser.add_argument("--learning-rate", type=float, default=1e-5)
+    parser.add_argument("--ema-decay", type=float, default=0.99)
+    parser.add_argument("--rank", type=int, default=8)
+    parser.add_argument("--seed", type=int, default=20261018)
+    parser.add_argument("--allow-shared-videos-canary", action="store_true")
+    args = parser.parse_args(argv)
+    if (min(args.steps, args.max_attempts, args.records_per_step, args.candidate_tokens) < 1
+            or args.temperature <= 0 or args.packet_weight < 0 or args.learning_rate <= 0
+            or args.bandwidth <= 0 or not 0 <= args.ema_decay < 1):
+        parser.error("invalid training configuration")
+    repo = Path(__file__).resolve().parents[2]
+    source = repo / "baselines/videoseal_6000d/source"
+    import sys
+    sys.path[:0] = [str(source / "baselines/VideoSEAL"), str(source)]
+    tasks = load_tasks(args.tasks, repo / "baselines/videoseal_6000d/selection/identity_mapping.json",
+                       allow_shared_videos=args.allow_shared_videos_canary)
+    args.output.mkdir(parents=True, exist_ok=False)
+    baseline_env = configure_baseline(source, inspector_endpoint=args.inspector_endpoint,
+                                       compactor_endpoint=args.compactor_endpoint)
+    config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
+    config.update({"task_manifest_sha256": sha(args.tasks), "baseline_commit": "7676bac4fa06a3100e73cc728f53b6582cb97006",
+                   "sampler_contract": "planned-frame-packet-approximation-with-factual-parity",
+                   "training_gold_used": False, "candidate_tool_calls": 0,
+                   "candidate_draws_per_record": {"student": 2, "teacher": 1},
+                   "baseline_environment": baseline_env})
+    (args.output / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+    import torch
+    from .packets import SamplerSpec, build_action_packet, gaussian_packet_kernel, validate_factual_packet
+    from .policy import ContextOverflow, HFPolicy
+    from .rollout import run_task
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    policy = HFPolicy.load(args.model, rank=args.rank, max_context=args.max_context)
+    optimizer = torch.optim.AdamW(policy.parameters(), lr=args.learning_rate, weight_decay=0.0)
+    sampler = SamplerSpec()
+    updates, attempts, total_records, nonzero_packet = 0, 0, 0, 0
+    task_order = list(tasks)
+    random.shuffle(task_order)
+    try:
+        while updates < args.steps and attempts < args.max_attempts:
+            task = task_order[attempts % len(task_order)]
+            attempts += 1
+            uid_hash = hashlib.sha256(str(task["uid"]).encode()).hexdigest()
+            try:
+                media = media_spec(task)
+                rollout = run_task(task, policy, save_dir=args.output / "trajectories" / f"attempt-{attempts}",
+                                   max_steps=args.max_steps, temperature=args.temperature,
+                                   max_new_tokens=args.rollout_tokens)
+                records = []
+                for record in rollout.factual_records:
+                    completion = record["completion"]
+                    if not completion.token_ids or not completion.complete or not record["observation"].get("ok"):
+                        continue
+                    predicted = build_action_packet(media, record["action"]["arguments"].get("spans"), sampler)
+                    actual_ts = record["observation"].get("metadata", {}).get("timestamps")
+                    parity = validate_factual_packet(predicted, actual_ts or [])
+                    actual_pixels = record["observation"].get("metadata", {}).get("actual_pixels")
+                    predicted_pixels = sum(f.final_width * f.final_height for f in predicted.frames)
+                    if not parity.accepted or actual_pixels != predicted_pixels:
+                        append(args.output / "metrics.jsonl", {"event": "skip_packet_parity", "attempt": attempts,
+                                                               "uid_hash": uid_hash})
+                        continue
+                    records.append(record)
+                    if len(records) >= args.records_per_step:
+                        break
+                if not records:
+                    append(args.output / "metrics.jsonl", {"event": "skip_no_eligible_inspection", "attempt": attempts,
+                                                           "uid_hash": uid_hash})
+                    continue
+                # Fresh independent draws after freezing H/F; never reuse the
+                # factual inspection action as an independent MMD sample.
+                groups = []
+                for record in records:
+                    teacher_messages = hindsight_messages(record["messages"], record["observation"])
+                    a = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
+                                      max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                    ap = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
+                                       max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                    b = policy.sample(teacher_messages, adapter="teacher", prefix=INSPECTION_PREFIX,
+                                      max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                    packets = [build_action_packet(media, candidate_spans(c), sampler) for c in (a, ap, b)]
+                    coefficient = packet_coefficient(*packets, kernel=lambda x, y: gaussian_packet_kernel(x, y, bandwidth=args.bandwidth))
+                    groups.append((record, teacher_messages, a, packets, coefficient))
+                optimizer.zero_grad(set_to_none=True)
+                values = []
+                for record, teacher_messages, candidate, packets, coefficient in groups:
+                    kl = policy.hindsight_kl(record["completion"], teacher_messages, temperature=args.temperature)
+                    kl_value = float(kl.detach())
+                    (kl / len(groups)).backward()
+                    score_value = None
+                    if args.packet_weight and coefficient.value != 0:
+                        score = policy.sequence_log_prob(candidate, temperature=args.temperature)
+                        score_value = float(score.detach())
+                        (args.packet_weight * coefficient.value * score / len(groups)).backward()
+                    values.append({"reverse_kl": kl_value, "packet_coefficient": coefficient.value,
+                                   "student_kernel": coefficient.student_similarity,
+                                   "teacher_kernel": coefficient.teacher_similarity,
+                                   "score_log_probability": score_value,
+                                   "candidate_valid": [p.valid for p in packets],
+                                   "candidate_frame_counts": [len(p.frames) for p in packets]})
+                norm = torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0, error_if_nonfinite=True)
+                if not math.isfinite(float(norm)) or float(norm) == 0:
+                    raise RuntimeError("no finite nonzero student gradient")
+                optimizer.step()
+                policy.update_teacher(args.ema_decay)
+                updates += 1
+                total_records += len(groups)
+                nonzero_packet += sum(v["packet_coefficient"] != 0 and v["score_log_probability"] is not None for v in values)
+                row = {"event": "update", "step": updates, "attempt": attempts, "uid_hash": uid_hash,
+                       "gradient_norm": float(norm), "records": values,
+                       "candidate_tool_calls": 0, "ema_updated": True}
+                append(args.output / "metrics.jsonl", row)
+                print(json.dumps(row, allow_nan=False), flush=True)
+            except ContextOverflow as exc:
+                optimizer.zero_grad(set_to_none=True)
+                append(args.output / "metrics.jsonl", {"event": "skip_context_overflow", "attempt": attempts,
+                                                       "uid_hash": uid_hash, "reason": str(exc)})
+        if updates != args.steps:
+            raise RuntimeError(f"only {updates}/{args.steps} updates in {attempts} on-policy attempts")
+        policy.save(args.output / f"step-{updates}", optimizer=optimizer, step=updates, config=config)
+        result = {"state": "COMPLETED", "updates": updates, "attempts": attempts,
+                  "eligible_records": total_records, "nonzero_packet_updates": nonzero_packet,
+                  "candidate_tool_calls": 0, "accuracy_evaluated": False,
+                  "sampler_contract": config["sampler_contract"]}
+        (args.output / "TRAIN_RESULT.json").write_text(json.dumps(result, indent=2) + "\n")
+        return 0
+    except Exception as exc:
+        (args.output / "TRAIN_RESULT.json").write_text(json.dumps({"state": "FAILED", "updates": updates,
+              "attempts": attempts, "error_type": type(exc).__name__, "error": str(exc)[:1000]}, indent=2) + "\n")
+        raise
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
