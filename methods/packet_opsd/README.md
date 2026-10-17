@@ -18,8 +18,9 @@ H plus F. Dense reverse token KL on the factual completion prefixes supplies
 ordinary hindsight OPSD. The teacher may see the Inspector's generated answer;
 it never sees benchmark gold or any unobserved video image.
 
-The auxiliary compares the distribution of complete frame packets after the
-existing shared-budget packing operation S. Hold the original inspection-tool
+The auxiliary compares the pushforward distribution over planned packets after
+the existing shared-budget packing operation S, plus one invalid/censored
+symbol for unsuccessful argument draws. Hold the original inspection-tool
 prefix fixed, then sample its free JSON arguments twice from the current
 student and once from the hindsight teacher. This is a **conditional argument
 distribution**, not the full Planner distribution over rationales/tool types.
@@ -70,10 +71,11 @@ would be incorrect. `packets.py` keeps those identities separate.
 
 The trainer requires the factual planned labels/count and total post-resize
 pixels to match the original Inspector metadata, otherwise it rejects that
-state. This does not certify unexecuted candidate pixels. A strict identity
-mode is available only with complete backend-bound per-span decoder traces;
-it refuses missing/uncovered candidate traces and never silently falls back.
-No extra candidate video decoding is performed to obtain such traces.
+state. This does not certify unexecuted candidate pixels. The packet utility
+API supports a strict identity mode only with complete backend-bound per-span
+decoder traces; it refuses missing/uncovered candidate traces and never
+silently falls back. The training CLI and engineering canary use the planned
+contract. No extra candidate video decoding is performed to obtain such traces.
 
 The kernel does not represent optional context/span-label language, subtitle
 rendering, JPEG bytes, or the server's vision processor. Hence this is not an
@@ -158,6 +160,12 @@ then consume that search directory. `--smoke-limit N` produces a separate
 search input expected by the fixed300 Observer. Neither a partial check nor
 the engineering training canary is a 300-question evaluation.
 
+The in-process Planner uses Transformers for fresh adapter rollouts/evaluation;
+the archived 53% Planner used vLLM. Greedy decoding alone does not guarantee
+identical outputs across engines. An accuracy comparison needs an untrained
+control on this same backend, or the trained adapter served through the
+original vLLM contract. The engineering canary does not validate score parity.
+
 ## Validation and comparisons
 
 ```
@@ -179,3 +187,23 @@ ingredients are standard. Novelty relative to HERO, OCSD, VEI and ActionOPD,
 the relevance of shared-budget coupling, and any accuracy/cost benefit still
 require matched experiments. The token objective, teacher information, tool
 budget, and extra LM sampling should be held fixed across those comparisons.
+
+## Recorded engineering canary (2026-10-18)
+
+[VALIDATION.json](VALIDATION.json) records all 45 tests passing with no skips in
+the original runtime, and two real GPU optimizer/EMA updates on two questions
+from one video disjoint from fixed300. Both updates had a nonzero **actual
+accumulated packet gradient increment**, not just nonzero coefficients. Student
+and teacher checkpoint tensors were finite, both LoRA-B adapters were nonzero,
+and all 144 AdamW parameter states reached step 2. Candidate tool calls were
+zero. Owned services were cleaned up and the original GPU reservation restored.
+The earlier failed attempts are retained in the report.
+
+This verifies the training path, not useful learning. The first weighted packet
+gradient increment was 7.2047, or 15.50 times the preceding gradient: weight .05
+does not establish balance between the sequence-sum packet score and mean token
+KL. The second update had two truncated student candidates and a valid teacher;
+its signal may solely suppress invalid/censored draws. Neither update establishes
+that temporal packing structure or visual evidence credit has been learned.
+Strict decoder identity was not enabled, and no fixed300 accuracy evaluation or
+full-model checkpoint reload was performed.

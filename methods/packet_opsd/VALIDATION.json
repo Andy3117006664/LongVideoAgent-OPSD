@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "conclusion": "Engineering canary passed; research effectiveness and accuracy gains are untested.",
+  "verified_at_utc": "2026-10-17T17:46:48.357374+00:00",
+  "code": {
+    "baseline_commit": "7676bac4fa06a3100e73cc728f53b6582cb97006",
+    "deployed_method_commit": "a3dc3b7ef08bdfbdf529865fdc7ce905437f239f",
+    "captured_baseline_files_unchanged": 97,
+    "deployed_source_files": 124,
+    "deployed_source_manifest_sha256": "0d666f268e1cf6a562ff4e26305d0127cf0b645877fafe2a958a9b3e147e2f32",
+    "documentation_and_this_report_added_after_run": true
+  },
+  "unit_tests": {
+    "environment": "Original 6000D training runtime, CPU only",
+    "command": "CUDA_VISIBLE_DEVICES='' python -m unittest discover -s tests/packet_opsd -p 'test_*.py' -v",
+    "passed": 45,
+    "failed": 0,
+    "skipped": 0,
+    "model_tests": "Tiny random Qwen3/LoRA models, no model downloads",
+    "runtime": {
+      "python": "3.10.19",
+      "torch": "2.8.0+cu128",
+      "transformers": "4.57.1",
+      "peft": "0.18.1",
+      "accelerate": "1.13.0",
+      "vllm": "0.11.0"
+    }
+  },
+  "gpu_canary": {
+    "label": "v3",
+    "planner": "Qwen3-8B, frozen shared base with student and own EMA teacher LoRA",
+    "inspector": "Qwen2.5-VL-7B-Instruct, original vLLM serving contract",
+    "compactor": "Qwen3-8B, original vLLM serving contract",
+    "start_utc": "2026-10-17T17:34:26.156998+00:00",
+    "end_utc": "2026-10-17T17:45:17.782967+00:00",
+    "data": {
+      "prepared_rows": 4,
+      "used_questions": 2,
+      "distinct_videos": 1,
+      "held_out_uid_and_question_disjoint": true,
+      "held_out_video_disjoint": true,
+      "answer_free_manifest_sha256": "28972bffca615c8105c74b8638a19d579df2cd1cf9a328b136cf3e968dad386d",
+      "gold_or_evidence_annotations_used": false
+    },
+    "configuration": {
+      "steps": 2,
+      "max_attempts": 4,
+      "records_per_step": 1,
+      "max_steps": 4,
+      "max_context": 16384,
+      "rollout_tokens": 4096,
+      "candidate_tokens": 384,
+      "temperature": 0.7,
+      "packet_weight": 0.05,
+      "bandwidth": 1.0,
+      "learning_rate": 1e-05,
+      "ema_decay": 0.99,
+      "rank": 8,
+      "seed": 20261018,
+      "sampler_contract": "planned-frame-packet-approximation-with-factual-parity",
+      "training_gold_used": false,
+      "candidate_tool_calls": 0,
+      "candidate_draws_per_record": {
+        "student": 2,
+        "teacher": 1
+      }
+    },
+    "result": {
+      "state": "COMPLETED",
+      "updates": 2,
+      "attempts": 2,
+      "eligible_records": 2,
+      "nonzero_packet_updates": 2,
+      "packet_gradient_updates": 2,
+      "candidate_tool_calls": 0,
+      "accuracy_evaluated": false,
+      "sampler_contract": "planned-frame-packet-approximation-with-factual-parity"
+    },
+    "trainer_exit_code": 0,
+    "metrics": [
+      {
+        "step": 1,
+        "attempt": 1,
+        "gradient_norm": 7.2411417961120605,
+        "records": [
+          {
+            "reverse_kl": 0.2871897220611572,
+            "packet_coefficients": [
+              0.0,
+              -1.0
+            ],
+            "student_kernel": 1.88097021938839e-23,
+            "teacher_kernels": [
+              1.88097021938839e-23,
+              1.0
+            ],
+            "score_log_probabilities": [
+              null,
+              -14.44510555267334
+            ],
+            "packet_gradient_norm": 7.20472319720955,
+            "actual_accumulated_packet_delta_norm": 7.20472319720955,
+            "gradient_before_packet_norm": 0.464799214128568,
+            "packet_gradient_ratio": 15.500721555042588,
+            "candidate_complete": [
+              true,
+              true,
+              true
+            ],
+            "candidate_token_counts": [
+              357,
+              151,
+              149
+            ],
+            "candidate_valid": [
+              true,
+              true,
+              true
+            ],
+            "candidate_frame_counts": [
+              64,
+              32,
+              32
+            ]
+          }
+        ],
+        "candidate_tool_calls": 0,
+        "ema_updated": true
+      },
+      {
+        "step": 2,
+        "attempt": 2,
+        "gradient_norm": 0.36275753378868103,
+        "records": [
+          {
+            "reverse_kl": 0.14668068289756775,
+            "packet_coefficients": [
+              1.0,
+              1.0
+            ],
+            "student_kernel": 1.0,
+            "teacher_kernels": [
+              0.0,
+              0.0
+            ],
+            "score_log_probabilities": [
+              -0.004382878541946411,
+              -0.004382878541946411
+            ],
+            "packet_gradient_norm": 0.03216342581376597,
+            "actual_accumulated_packet_delta_norm": 0.03216342581376597,
+            "gradient_before_packet_norm": 0.361676267067586,
+            "packet_gradient_ratio": 0.08892877067810376,
+            "candidate_complete": [
+              false,
+              false,
+              true
+            ],
+            "candidate_token_counts": [
+              384,
+              384,
+              168
+            ],
+            "candidate_valid": [
+              false,
+              false,
+              true
+            ],
+            "candidate_frame_counts": [
+              0,
+              0,
+              64
+            ]
+          }
+        ],
+        "candidate_tool_calls": 0,
+        "ema_updated": true
+      }
+    ],
+    "checkpoint_cpu_audit": {
+      "at": "2026-10-17T17:46:47.549717+00:00",
+      "cpu_only": true,
+      "cuda_initialized": false,
+      "files": [
+        {
+          "file": "step-2/student/adapter_config.json",
+          "bytes": 997,
+          "sha256": "4a0b8865b0e964149e2e24f99beef6d92bc3a32fc32a42c02138285f0e5121ff"
+        },
+        {
+          "file": "step-2/student/adapter_model.safetensors",
+          "bytes": 15354512,
+          "sha256": "c20e56b99b4f4534fd07ee12f668a63514a9e8ee39e3c785c3e0613e7b520217"
+        },
+        {
+          "file": "step-2/teacher/adapter_config.json",
+          "bytes": 997,
+          "sha256": "4a0b8865b0e964149e2e24f99beef6d92bc3a32fc32a42c02138285f0e5121ff"
+        },
+        {
+          "file": "step-2/teacher/adapter_model.safetensors",
+          "bytes": 7686824,
+          "sha256": "5356388bdaba0107a4a5a99c2b3fd9191667fb7dddf75a7c48058291b26b60b8"
+        }
+      ],
+      "student": {
+        "tensors": 144,
+        "elements": 3833856,
+        "dtypes": [
+          "torch.float32"
+        ],
+        "finite": true,
+        "lora_B_nonzero_elements": 1474560,
+        "lora_B_l2": 0.01947528752909235,
+        "lora_B_maxabs": 2.0013481844216585e-05
+      },
+      "teacher": {
+        "tensors": 144,
+        "elements": 3833856,
+        "dtypes": [
+          "torch.bfloat16"
+        ],
+        "finite": true,
+        "lora_B_nonzero_elements": 1474560,
+        "lora_B_l2": 0.00031255986223409517,
+        "lora_B_maxabs": 2.998858690261841e-07
+      },
+      "student_teacher_difference": {
+        "l2": 0.021935010722065048,
+        "maxabs": 6.098765879869461e-05,
+        "nonzero_elements": 3833844
+      },
+      "training_state_step": 2,
+      "optimizer_state_parameter_count": 144,
+      "optimizer_step_min": 2.0,
+      "optimizer_step_max": 2.0
+    },
+    "optimizer_rng_state_artifact": {
+      "file": "train/step-2/training_state.pt",
+      "bytes": 30804451,
+      "sha256": "1891faf7b34020406f439eae22b8875561730e88538dd6e1ac12301c801fcfc2"
+    },
+    "cleanup_confirmed": true,
+    "reservation_restored": {
+      "state": "HOLDING",
+      "all_eight_compute_only_original_reservation_holder": true,
+      "verified_at_utc": "2026-10-17T17:46:47.537182+00:00"
+    }
+  },
+  "retained_failed_attempts": [
+    {
+      "label": "v1",
+      "result": "Failed before model/trainer startup because the temporary filesystem was full.",
+      "optimizer_updates": 0,
+      "cleanup_confirmed": true
+    },
+    {
+      "label": "v2",
+      "result": "Two ordinary token-KL/EMA updates, but zero packet gradient; failed the method gate.",
+      "optimizer_updates": 2,
+      "actual_packet_gradient_records": 0,
+      "cleanup": "Original cleanup refusal retained; separate owned-process repair verified cleanup and restored reservation."
+    }
+  ],
+  "limitations": [
+    "Only two updates on two questions from one video. No fixed300 accuracy evaluation, convergence study, or accuracy gain.",
+    "Current training uses planned packet metadata with factual timestamp/count/total-pixel parity, not decoded PTS or counterfactual pixel identity. Strict trace identity is a utility API and was not enabled in training.",
+    "Step 1 weighted packet gradient increment was 15.5007 times the preceding token-KL gradient. Packet sequence-sum and token-mean KL scales are not calibrated; clipping can be dominated by the combined packet direction.",
+    "Step 2 both student candidates reached the 384-token cap and mapped to the invalid symbol. Its nonzero gradient may only reduce censoring/invalid mass; it does not establish temporal packing or evidence learning.",
+    "Candidate comparisons use zero extra retrieval/Inspector calls and no extra pixel decoding, but add two student and one teacher text generations plus student sequence scoring.",
+    "Fresh Planner rollout/evaluation uses Transformers; the archived 53% baseline used vLLM. Accuracy comparisons require a same-backend untrained control or original vLLM adapter serving.",
+    "Teacher hindsight can contain an incorrect generated Inspector answer. No gold, causal evidence credit, or localization-versus-missed-evidence identification is established.",
+    "Checkpoint files are private. Hashes and CPU finite/nonzero checks are recorded; no full-model checkpoint reload or seamless optimizer-resume interface is claimed."
+  ]
+}
