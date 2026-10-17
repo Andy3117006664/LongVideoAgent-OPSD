@@ -2,6 +2,10 @@
 
 本文给负责维护代码、在其他机器复现实验、上传结果的 agent 使用。先读完本文件，再执行任何训练或公开上传。
 
+## 2026-10 VideoSEAL推理基线入口
+
+后续VideoSEAL方向以[6000D单路BM25＋条件Observer](baselines/videoseal_6000d/README.md)为起点，代码在该目录的`source/`，原搜索154/300、条件Observer后159/300。它保留原候选压缩、原MCQ fallback和原Observer首字符解析，不是Embedding-4B／严格保留拒答的改编路线，也不是OPSD训练效果。新可移植入口仅作本地源码与组合检查，未新跑GPU；修改前先读其参数和来源清单。本文下方3B OT训练步骤属于历史LVA分支，不能直接当成这个8B推理基线的训练实现。基线与新方法必须分支、分实验身份比较。
+
 ## 公开仓库
 
 - GitHub（代码、启动器、脱敏日志和指标）：<https://github.com/Andy3117006664/LongVideoAgent-OPSD>

@@ -1,0 +1,33 @@
+{
+  "method": "Original stock single-query BM25 ablation, original conditional DirectObserver; unchanged compactor/parameters",
+  "denominator": 300,
+  "original_search": {
+    "correct": 154,
+    "accuracy": 0.5133333333333333,
+    "valid_AD": 300,
+    "state_counts": {
+      "completed": 300
+    }
+  },
+  "conditional_observer_final": {
+    "correct": 159,
+    "accuracy": 0.53,
+    "valid_AD": 300,
+    "observer_calls": 91,
+    "observer_adopted": 91
+  },
+  "difference": {
+    "net_correct": 5,
+    "percentage_points": 1.6666666666666667,
+    "wrong_to_right": 13,
+    "right_to_wrong": 8
+  },
+  "public_parquet_sha256": "3828504a9e9630c4bc2d998ad4dc33e96ee77f438f6c70aba8fa340cdb7fb4c1",
+  "capture_manifest_sha256": "d8ef6864546bdcc1df7ab9ff270b118e4a0c565e6a35bef1842a0b03c967e8a9",
+  "score_sha256": "8cf5e1d8770c3dfac7f991624fe6013a96c40ec9edae2159a5fac680d4f6f0be",
+  "run_date": "2026-10-17",
+  "scored_at_utc": "2026-10-17T16:26:02.516685+00:00",
+  "training": false,
+  "op_sd_training_gain_claimed": false,
+  "new_packaging_gpu_evaluation_performed": false
+}

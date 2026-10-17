@@ -27,6 +27,16 @@ test only. Checkpoint artifacts are tracked separately in the [public HF
 repository](https://huggingface.co/Andynsn/longvideoagent-opsd-qwen2.5-3b-lora).
 
 ## 🚀 Latest News
+
+### October 2026: VideoSEAL-based inference baseline
+
+The [6000D BM25 + conditional DirectObserver baseline](baselines/videoseal_6000d/README.md)
+contains the source and settings of the completed fixed-300 LVBench run:
+**154/300 (51.33%)** from search and **159/300 (53.00%)** after the original
+conditional Observer. This is the starting point for subsequent VideoSEAL work;
+it is an inference result, not an OPSD training gain. Historical LVA training
+artifacts above remain separate.
+
 • `[2026/03/22]:` 🤗 We released the **LongVideoAgent-Qwen2.5-7B** model weights on [Hugging Face](https://huggingface.co/longvideoagent/longvideoagent-qwen2.5-7b).
 
 • `[2026/03/07]:` 🤗 We released the **LongVideoAgent-Qwen2.5-3B** model weights on [Hugging Face](https://huggingface.co/longvideoagent/longvideoagent-qwen2.5-3b).
