@@ -1,0 +1,16 @@
+{
+  "name": "6000d-original-stock-bm25-conditional-observer-fixed300",
+  "run_date": "2026-10-17",
+  "rows": 300,
+  "videos": 102,
+  "training": false,
+  "task_lora": false,
+  "planner": {"model": "Qwen3-8B", "temperature": 0.0, "max_tokens": 4096, "context_limit": 40960, "timeout_seconds": 600},
+  "compactor": {"model": "Qwen3-8B", "enabled": true, "temperature": 0.1, "max_tokens": 2048, "prompt": "source/research/prompts/fixed30_lossless_compactor_v1.txt"},
+  "retrieval": {"tool": "videoseal.tools.visual_tools:VisualRetrieveAliasTool", "query": "single Planner query", "bm25_k1": 1.5, "bm25_b": 0.75, "topk": 30, "positive_scores_only": true, "diversity_seconds": 15, "five_way_fixed30_enabled": false, "bge_used": false, "embedding_4b_used": false},
+  "search": {"max_steps": 16, "task_timeout_seconds": 2400, "benchmark_time_reference": false, "initial_concurrency": 2, "later_concurrency": 8},
+  "inspector": {"model": "Qwen2.5-VL-7B-Instruct", "fps": 2, "frames_per_call": 64, "frame_selection": "original prefix then round-robin; global time order", "max_long_edge": 1280, "dynamic_max_long_edge": true, "total_pixels": 20971520, "min_pixels": 12544, "edge_multiple": 32, "server_max_pixels_per_image": 200704, "temperature": 0.1, "max_tokens": 4096, "exclusive_output": true, "preserve_uncertainty": false, "strict_final_gate": true, "last_step_mcq_prompt": true, "forced_full_video_fallback": true},
+  "observer": {"model": "Qwen2.5-VL-7B-Instruct", "backend": "transformers", "trigger": "has_forced_full_video and available nonforced inspection packet", "adopt": "has_forced_full_video and original Observer prediction in A-D", "fps": 2.0, "frames": 64, "representation": "images", "do_sample": false, "max_new_tokens": 2, "parser": "original raw.upper()[:1]", "workers": 1},
+  "observed_runtime": {"torch": "2.8.0+cu128", "cuda": "12.8", "vllm": "0.11.0", "vllm_engine": "V1", "transformers": "4.57.1", "pyarrow": "23.0.1", "hardware": "RTX 6000D", "complete_environment_lock": false},
+  "publication": {"core_source_files": 97, "byte_identical": 92, "deployment_path_sanitized": 5, "portable_wrappers_new_gpu_evaluation": false, "paper_exact_reproduction_claimed": false}
+}

@@ -1,0 +1,18 @@
+{
+  "source_files_verified": 97,
+  "byte_identical_source_files": 92,
+  "deployment_path_sanitized_files": 5,
+  "python_syntax_files": 95,
+  "shell_syntax_files": 4,
+  "portable_adoption_vs_captured_ast_synthetic_cases": 162,
+  "adoption_exactly_matches_captured_coordinator": true,
+  "published_prediction_rows": 300,
+  "unique_prediction_identities": 300,
+  "observed_adopted_count": 91,
+  "new_model_calls": 0,
+  "new_gpu_evaluation": false,
+  "gold_read": false,
+  "relative_search_paths_preserved_across_launcher_cwd": true,
+  "observer_paths_resolved_before_child_cwd": true,
+  "secret_private_path_and_dataset_payload_scan": "PASS_CHANGED_PUBLICATION_FILES"
+}

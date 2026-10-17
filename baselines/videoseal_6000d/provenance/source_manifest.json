@@ -1,0 +1,926 @@
+{
+  "schema": "6000d-baseline-source-publication-v1",
+  "run_date": "2026-10-17",
+  "published_on": "2026-10-18",
+  "training": false,
+  "source_count": 97,
+  "source_capture_manifest_sha256": "d8ef6864546bdcc1df7ab9ff270b118e4a0c565e6a35bef1842a0b03c967e8a9",
+  "source_capture_metadata_sha256": "76cc0c48dfa63157b9a5d7ff28a0d80a012a9d33c21ec91654a47d8c1f345978",
+  "supplemental_archive_sha256": "5edc82f277e75a2e2f6d321148e432daab974ebf9edff49d136faf9e6e6cfd10",
+  "actual_coordinator_sha256": "25c3599312c145c585f7cf0d28640df2a1a951bd516424885039c5e71077a47e",
+  "excluded": [
+    "two AppleDouble resource-fork files",
+    "unrelated supplemental research methods",
+    "benchmark questions/labels/media/indexes",
+    "credentials, raw HTTP/model logs, process-control state",
+    "model weights and installed environments"
+  ],
+  "files": [
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "a25f11f8c4ff58417b65338152de998b7379326f5ac706f6c5eb40c33e3d2a98",
+      "published_sha256": "a25f11f8c4ff58417b65338152de998b7379326f5ac706f6c5eb40c33e3d2a98",
+      "original_bytes": 66,
+      "published_bytes": 66,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/agents/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "published_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "original_bytes": 36,
+      "published_bytes": 36,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/agents/tool_agent.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "3bb3827da55258caeee36e20c891b71dd8ad6583c6fc87cc47c7b542029b626d",
+      "published_sha256": "3bb3827da55258caeee36e20c891b71dd8ad6583c6fc87cc47c7b542029b626d",
+      "original_bytes": 54394,
+      "published_bytes": 54394,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/cli/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "9321a7b033b718ff7e4bf74b27a44679c46f3021e92853d9c5b571e0dfaa0815",
+      "published_sha256": "9321a7b033b718ff7e4bf74b27a44679c46f3021e92853d9c5b571e0dfaa0815",
+      "original_bytes": 217,
+      "published_bytes": 217,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/cli/offline_build_batch.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "9100b420fd9139b73094b0920ce7a653d8ec2b7575b5f2aaa66f332feee24015",
+      "published_sha256": "9100b420fd9139b73094b0920ce7a653d8ec2b7575b5f2aaa66f332feee24015",
+      "original_bytes": 9019,
+      "published_bytes": 9019,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/cli/run_from_parquet.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "bd35e2bebb7dda20a653cb460166f9f936552371551e88c951b234c8a20af7dd",
+      "published_sha256": "bd35e2bebb7dda20a653cb460166f9f936552371551e88c951b234c8a20af7dd",
+      "original_bytes": 15461,
+      "published_bytes": 15461,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/cli/serve_vllm_openai_multi.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "7d167bd789c918979676e75365b7df8f033055572b7a9e640687892c03a8f16a",
+      "published_sha256": "7d167bd789c918979676e75365b7df8f033055572b7a9e640687892c03a8f16a",
+      "original_bytes": 7029,
+      "published_bytes": 7029,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/offline_build/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "b42397220acc53236b09c61018181d9f7f8a806da0aaa4b4008a3aeb5e6b31f2",
+      "published_sha256": "b42397220acc53236b09c61018181d9f7f8a806da0aaa4b4008a3aeb5e6b31f2",
+      "original_bytes": 91,
+      "published_bytes": 91,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/offline_build/clip_index.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "0e6d4d8bcd503b1d2d15ff9a141f8306eb2ea2abaa29cf51604c18f19bdeb38c",
+      "published_sha256": "0e6d4d8bcd503b1d2d15ff9a141f8306eb2ea2abaa29cf51604c18f19bdeb38c",
+      "original_bytes": 3855,
+      "published_bytes": 3855,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/offline_build/ocr_index.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "84abc02a2faf3d1cbed01b414f084f743dfb009b72a1980ae337b9d84731e617",
+      "published_sha256": "84abc02a2faf3d1cbed01b414f084f743dfb009b72a1980ae337b9d84731e617",
+      "original_bytes": 3008,
+      "published_bytes": 3008,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/offline_build/orchestrator.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "55505c9b3f419c4ddc3c4e99ebc7ba70c308fdcf4a7141cd346f2eb919b8eaf7",
+      "published_sha256": "55505c9b3f419c4ddc3c4e99ebc7ba70c308fdcf4a7141cd346f2eb919b8eaf7",
+      "original_bytes": 10677,
+      "published_bytes": 10677,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/offline_build/semantic_index_builder.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "67253d2f96092907a09d1b1c093d12338476649e2142e87581cb726f01db25a1",
+      "published_sha256": "67253d2f96092907a09d1b1c093d12338476649e2142e87581cb726f01db25a1",
+      "original_bytes": 11179,
+      "published_bytes": 11179,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/offline_build/summary_builder.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "0f99742d265fb72b8761558964916c463ff7e005f89e7a6ecf31d426daf7f120",
+      "published_sha256": "0f99742d265fb72b8761558964916c463ff7e005f89e7a6ecf31d426daf7f120",
+      "original_bytes": 8484,
+      "published_bytes": 8484,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/prompts/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "731fe49b4be72d86efe3c56c7bd1ef8010a6d96535a7640d367c85a54b3c6ab3",
+      "published_sha256": "731fe49b4be72d86efe3c56c7bd1ef8010a6d96535a7640d367c85a54b3c6ab3",
+      "original_bytes": 397,
+      "published_bytes": 397,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/prompts/caption_prompts.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "8ec9598b863cdd35f577384e971063d2c047574fb36e26ab6b00add3624a1436",
+      "published_sha256": "8ec9598b863cdd35f577384e971063d2c047574fb36e26ab6b00add3624a1436",
+      "original_bytes": 2380,
+      "published_bytes": 2380,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/prompts/summary_prompts.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "ebc411ba7069e32a6e05dbe6853e11c20aff2bf17ed5316154c99c0f64aa6ea6",
+      "published_sha256": "ebc411ba7069e32a6e05dbe6853e11c20aff2bf17ed5316154c99c0f64aa6ea6",
+      "original_bytes": 5230,
+      "published_bytes": 5230,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/prompts/visual_tool_prompts.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "541193087fe64c998e19f80173b77d20b217dfd230736406cd88ae7abec5524b",
+      "published_sha256": "541193087fe64c998e19f80173b77d20b217dfd230736406cd88ae7abec5524b",
+      "original_bytes": 10884,
+      "published_bytes": 10884,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/runner/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "published_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "original_bytes": 36,
+      "published_bytes": 36,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/runner/backfill_preds.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "f3ecdef404c96ddd6d4eb50023a5edc8b5c6e2aaf295be722613d78847b7f6a8",
+      "published_sha256": "f3ecdef404c96ddd6d4eb50023a5edc8b5c6e2aaf295be722613d78847b7f6a8",
+      "original_bytes": 2734,
+      "published_bytes": 2734,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/runner/per_question_runner.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "b528452ec7f3d709ee65f9b6f3ba518d81041183776615be82f0ce8da52df6a2",
+      "published_sha256": "b528452ec7f3d709ee65f9b6f3ba518d81041183776615be82f0ce8da52df6a2",
+      "original_bytes": 19281,
+      "published_bytes": 19281,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/runner/per_question_runner_vllm.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "a1dc63be250c35a3d9bdc3046cc2c37c6d456150f498960a9a5ccbcf1e11040c",
+      "published_sha256": "a1dc63be250c35a3d9bdc3046cc2c37c6d456150f498960a9a5ccbcf1e11040c",
+      "original_bytes": 8943,
+      "published_bytes": 8943,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/tools/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "published_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "original_bytes": 36,
+      "published_bytes": 36,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/tools/base.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "4d7f33a41210c7da0d0f0c4637c1df264bdf26e9ce0f73cb07a0069b00cb932e",
+      "published_sha256": "4d7f33a41210c7da0d0f0c4637c1df264bdf26e9ce0f73cb07a0069b00cb932e",
+      "original_bytes": 1299,
+      "published_bytes": 1299,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/tools/tool_map.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "522ada1ec9366c0904a81342732aced6d969799e5f0e6f98467bb75ccefc3050",
+      "published_sha256": "522ada1ec9366c0904a81342732aced6d969799e5f0e6f98467bb75ccefc3050",
+      "original_bytes": 1732,
+      "published_bytes": 1732,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/tools/visual_tools.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "2a226428b6e8256f36355d6f9747bb62a454994247ffec216e83911b6a50dc5c",
+      "published_sha256": "2a226428b6e8256f36355d6f9747bb62a454994247ffec216e83911b6a50dc5c",
+      "original_bytes": 25261,
+      "published_bytes": 25261,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/RAG/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "0aa195e76f607126e8699875c6242de20b1ec5190a13c80db4908d15b8eaa815",
+      "published_sha256": "0aa195e76f607126e8699875c6242de20b1ec5190a13c80db4908d15b8eaa815",
+      "original_bytes": 61,
+      "published_bytes": 61,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/RAG/build_srt_captions_json.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "9848de2a473d57c87225b940135eaf0138c1011282bc731a94d1f3335a35a221",
+      "published_sha256": "9848de2a473d57c87225b940135eaf0138c1011282bc731a94d1f3335a35a221",
+      "original_bytes": 1357,
+      "published_bytes": 1357,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/RAG/rag_index_embed.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "f142a921a807c304870e8801218546f530a46542255c18007e6c06a3042ca3a8",
+      "published_sha256": "f142a921a807c304870e8801218546f530a46542255c18007e6c06a3042ca3a8",
+      "original_bytes": 4118,
+      "published_bytes": 4118,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/RAG/rag_query_bm25.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "c6e31056dcf6396e8bcd26f5f059b8be6c8a222597ef8a76121bc5883e0fda6d",
+      "published_sha256": "c6e31056dcf6396e8bcd26f5f059b8be6c8a222597ef8a76121bc5883e0fda6d",
+      "original_bytes": 2580,
+      "published_bytes": 2580,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/RAG/rag_query_embed.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "b00856db8063a7dd8cfcea80368af515dada5858337e931ba1c45efe850b0659",
+      "published_sha256": "b00856db8063a7dd8cfcea80368af515dada5858337e931ba1c45efe850b0659",
+      "original_bytes": 4419,
+      "published_bytes": 4419,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "b20bc9ad59339174183cd69ebb9aabb812b974a31f69b351d002a9790c919bc8",
+      "published_sha256": "b20bc9ad59339174183cd69ebb9aabb812b974a31f69b351d002a9790c919bc8",
+      "original_bytes": 55,
+      "published_bytes": 55,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/agent/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "61efbb678a707a5bed9fcdd560d288f19b6aa131b5cc749751980365fc50f2a9",
+      "published_sha256": "61efbb678a707a5bed9fcdd560d288f19b6aa131b5cc749751980365fc50f2a9",
+      "original_bytes": 53,
+      "published_bytes": 53,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/agent/env.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "ec63ebea41af099365ffeeca1a384579d5da77269ef141735796a83956c085ff",
+      "published_sha256": "ec63ebea41af099365ffeeca1a384579d5da77269ef141735796a83956c085ff",
+      "original_bytes": 3007,
+      "published_bytes": 3007,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/agent/json_utils.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "d9403f6657f40c5b5f68f4f65bcbc946a4138a739610e7c078f644fbf2f185b2",
+      "published_sha256": "d9403f6657f40c5b5f68f4f65bcbc946a4138a739610e7c078f644fbf2f185b2",
+      "original_bytes": 1728,
+      "published_bytes": 1728,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/agent/tool_agent_parsing.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "318bcb5fe6793a133be532adcfb1e3fb5a77b571ed527cd4f7b9cf33efaf9ff7",
+      "published_sha256": "318bcb5fe6793a133be532adcfb1e3fb5a77b571ed527cd4f7b9cf33efaf9ff7",
+      "original_bytes": 2137,
+      "published_bytes": 2137,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/agent/tool_schema.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "ec91248bc2f17a3f1eede587561d7b69405d3bf5055f3b2a00de14d6fd354adf",
+      "published_sha256": "ec91248bc2f17a3f1eede587561d7b69405d3bf5055f3b2a00de14d6fd354adf",
+      "original_bytes": 1042,
+      "published_bytes": 1042,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/agent/trajectory.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "15282bf2e702e62277a4d0a49ace0613b20b13c58fdc3cf9569ee768272d2222",
+      "published_sha256": "15282bf2e702e62277a4d0a49ace0613b20b13c58fdc3cf9569ee768272d2222",
+      "original_bytes": 1198,
+      "published_bytes": 1198,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/api/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "528e64ecc16a6081177ecb65e2ab609d142d072a70631b474c079aeb39b7803c",
+      "published_sha256": "528e64ecc16a6081177ecb65e2ab609d142d072a70631b474c079aeb39b7803c",
+      "original_bytes": 72,
+      "published_bytes": 72,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/api/embeddings.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "995c02b75502c62a2e8f08f28b60ad2fe8fea654bf5d99531baa6ab1004500ef",
+      "published_sha256": "995c02b75502c62a2e8f08f28b60ad2fe8fea654bf5d99531baa6ab1004500ef",
+      "original_bytes": 4907,
+      "published_bytes": 4907,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/api/error_utils.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "4cdcfe45f7a6002f72e78176f5d58859200ae14b9eedd1cba4fc591db0fe7e8b",
+      "published_sha256": "4cdcfe45f7a6002f72e78176f5d58859200ae14b9eedd1cba4fc591db0fe7e8b",
+      "original_bytes": 1763,
+      "published_bytes": 1763,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/api/mllm.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "e03098c5da814c0adffc841968bba735719e7bf0092378f35642efdb8f6a0548",
+      "published_sha256": "e03098c5da814c0adffc841968bba735719e7bf0092378f35642efdb8f6a0548",
+      "original_bytes": 8977,
+      "published_bytes": 8977,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/api/router.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "873d123ad4de8dba879f6b4eab95d9bbd0fbbc133cc31b8237bb6080e5d526f0",
+      "published_sha256": "873d123ad4de8dba879f6b4eab95d9bbd0fbbc133cc31b8237bb6080e5d526f0",
+      "original_bytes": 11802,
+      "published_bytes": 11802,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/api/uploader.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "7ef0f5f558259fe31838384af90b4690a6599fb4f9da060b55b519f375eb32be",
+      "published_sha256": "7ef0f5f558259fe31838384af90b4690a6599fb4f9da060b55b519f375eb32be",
+      "original_bytes": 3406,
+      "published_bytes": 3406,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/env_paths.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "8dff08d3d4c796f99a4342eca6bdc14774ac5c8232ce095da2afccff12fa04f0",
+      "published_sha256": "8dff08d3d4c796f99a4342eca6bdc14774ac5c8232ce095da2afccff12fa04f0",
+      "original_bytes": 1606,
+      "published_bytes": 1606,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/lvbench_io.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "2ce2aa03f6074692c6c869b947601bfce8b67bd6d472d4f89a8ee5827341bff1",
+      "published_sha256": "2ce2aa03f6074692c6c869b947601bfce8b67bd6d472d4f89a8ee5827341bff1",
+      "original_bytes": 3007,
+      "published_bytes": 3007,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/mllm/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "f7d9f61ef5c792608f2856579e7544786a1974f186149cdef168389730a98e25",
+      "published_sha256": "f7d9f61ef5c792608f2856579e7544786a1974f186149cdef168389730a98e25",
+      "original_bytes": 67,
+      "published_bytes": 67,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/mllm/build_captions_json.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "66ff23aa7d7a929592b68909d20f3acc73a24b51fbc341ba185f3dd7d2b7ed3e",
+      "published_sha256": "66ff23aa7d7a929592b68909d20f3acc73a24b51fbc341ba185f3dd7d2b7ed3e",
+      "original_bytes": 16200,
+      "published_bytes": 16200,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/mllm/captioner.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "8819ab03f5de17e5822f91bf45a70ae2015a2875b6fb8d3d8a280407d3470a3b",
+      "published_sha256": "8819ab03f5de17e5822f91bf45a70ae2015a2875b6fb8d3d8a280407d3470a3b",
+      "original_bytes": 3455,
+      "published_bytes": 3455,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/mllm/frame_sampler.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "ac4fe23899a19cfecd53f8f9a4948b2392bdbda6076fc9a068a0161a14d39119",
+      "published_sha256": "ac4fe23899a19cfecd53f8f9a4948b2392bdbda6076fc9a068a0161a14d39119",
+      "original_bytes": 1899,
+      "published_bytes": 1899,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/mllm/image_tools.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "ec3a19e3129254f4b91275557b65efae67aa8e09fc217f5f4d6d6d8b24c6ed4e",
+      "published_sha256": "ec3a19e3129254f4b91275557b65efae67aa8e09fc217f5f4d6d6d8b24c6ed4e",
+      "original_bytes": 6246,
+      "published_bytes": 6246,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/mllm/video_io.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "639b29c5fcf008a344ce4106eff0e921223dca37b3d5a2a919a9ba8b522dedfd",
+      "published_sha256": "639b29c5fcf008a344ce4106eff0e921223dca37b3d5a2a919a9ba8b522dedfd",
+      "original_bytes": 1168,
+      "published_bytes": 1168,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/retrieval/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "published_sha256": "3c78788ea0fb8b468bf16f215d385ccca713e31b0d6625da9c1c4e1f920e5b92",
+      "original_bytes": 36,
+      "published_bytes": 36,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/retrieval/scoring.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "e5571148e193c294d76f7f870a824de9411a31f05c981a50f7ed06fda9eac1c2",
+      "published_sha256": "e5571148e193c294d76f7f870a824de9411a31f05c981a50f7ed06fda9eac1c2",
+      "original_bytes": 1277,
+      "published_bytes": 1277,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "359fc143370e55cfa57c47a9260ecd61679664b11439ae7a79f0fe7a87d88cc4",
+      "published_sha256": "359fc143370e55cfa57c47a9260ecd61679664b11439ae7a79f0fe7a87d88cc4",
+      "original_bytes": 399,
+      "published_bytes": 399,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/chunking.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "1bcce647ad38063777a762b1e49b4063b1980c10a8cc9c184deed6e493f0a05b",
+      "published_sha256": "1bcce647ad38063777a762b1e49b4063b1980c10a8cc9c184deed6e493f0a05b",
+      "original_bytes": 642,
+      "published_bytes": 642,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/extract.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "de31f6f7491e675672bc8151ed29b5e9264249a66a8b2ea5559a04cf1094238e",
+      "published_sha256": "de31f6f7491e675672bc8151ed29b5e9264249a66a8b2ea5559a04cf1094238e",
+      "original_bytes": 865,
+      "published_bytes": 865,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/frames.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "6c9153fb60cd5aed5e1446e6ddfd666006ddfe7329a1ffae1975265da255947c",
+      "published_sha256": "6c9153fb60cd5aed5e1446e6ddfd666006ddfe7329a1ffae1975265da255947c",
+      "original_bytes": 12596,
+      "published_bytes": 12596,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/io.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "cc00c4a2271622433671dcc86d5ca242c7722c94e8ed70582e28c50a43c91563",
+      "published_sha256": "cc00c4a2271622433671dcc86d5ca242c7722c94e8ed70582e28c50a43c91563",
+      "original_bytes": 742,
+      "published_bytes": 742,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/subtitles.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "cdf7a0ca935e59b79b698769938fe6b1132008d71ce4edb43b773cb47a95d1bb",
+      "published_sha256": "cdf7a0ca935e59b79b698769938fe6b1132008d71ce4edb43b773cb47a95d1bb",
+      "original_bytes": 5601,
+      "published_bytes": 5601,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/time.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "5d411868e571dbf416076e7a2840945f3a7e4e70c3ec8235e08ee98f55b8023b",
+      "published_sha256": "5d411868e571dbf416076e7a2840945f3a7e4e70c3ec8235e08ee98f55b8023b",
+      "original_bytes": 865,
+      "published_bytes": 865,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/baselines/VideoSEAL/videoseal/utils/video/tooling.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "32659b333a21b8c991ab41bb0d8775b0b2c08fd7a9ead7f00a24a07ccbb01c1c",
+      "published_sha256": "32659b333a21b8c991ab41bb0d8775b0b2c08fd7a9ead7f00a24a07ccbb01c1c",
+      "original_bytes": 12534,
+      "published_bytes": 12534,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "2c2e0384bb4c1141c6eadafc0c39dac8b5ed90ed44eed465acdd9c665f8c4eee",
+      "published_sha256": "2c2e0384bb4c1141c6eadafc0c39dac8b5ed90ed44eed465acdd9c665f8c4eee",
+      "original_bytes": 74,
+      "published_bytes": 74,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/audit.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "8bd82d0bd231158940828f503d918ba8013314dc2529fa946eb1e8442b86a23f",
+      "published_sha256": "8bd82d0bd231158940828f503d918ba8013314dc2529fa946eb1e8442b86a23f",
+      "original_bytes": 3246,
+      "published_bytes": 3246,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/codebooks.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "07d792656b69058bb4603e89da89b803fe287b2f44bda8bcbfdb392d19a5aa78",
+      "published_sha256": "07d792656b69058bb4603e89da89b803fe287b2f44bda8bcbfdb392d19a5aa78",
+      "original_bytes": 944,
+      "published_bytes": 944,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/frames.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "a3ef36c06091d99723f3c2ad47610d34e7558c5dbe7e82681c1096454f7757a2",
+      "published_sha256": "a3ef36c06091d99723f3c2ad47610d34e7558c5dbe7e82681c1096454f7757a2",
+      "original_bytes": 1280,
+      "published_bytes": 1280,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/io.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "d71a7e3a4bdbda97de9cf03e8fe3a0085312de0ae8dd226677e037e214356cb3",
+      "published_sha256": "d71a7e3a4bdbda97de9cf03e8fe3a0085312de0ae8dd226677e037e214356cb3",
+      "original_bytes": 2912,
+      "published_bytes": 2912,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/model.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "af887e1b72acbaf79657c96b9a80691fcb174d576aeda3d1debf4357413bc783",
+      "published_sha256": "af887e1b72acbaf79657c96b9a80691fcb174d576aeda3d1debf4357413bc783",
+      "original_bytes": 4352,
+      "published_bytes": 4352,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/question.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "c8d2c24a735a2da013b3a4919aa484abde3a1962c500b07c963781093bd31711",
+      "published_sha256": "c8d2c24a735a2da013b3a4919aa484abde3a1962c500b07c963781093bd31711",
+      "original_bytes": 583,
+      "published_bytes": 583,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/router.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "48595c50bdb1318bb38177645a0830da0eaa60c6adc861867f4faf4140810d33",
+      "published_sha256": "48595c50bdb1318bb38177645a0830da0eaa60c6adc861867f4faf4140810d33",
+      "original_bytes": 3648,
+      "published_bytes": 3648,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/run_dev.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "4ee4d958cabf4f7cf8331c03abb0f7c62ab22282591e33984a9bab2bc88a67a3",
+      "published_sha256": "4ee4d958cabf4f7cf8331c03abb0f7c62ab22282591e33984a9bab2bc88a67a3",
+      "original_bytes": 9824,
+      "published_bytes": 9824,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/schema.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "4dd6e8dc184f2126f3742a270f8b88dc3db176c15d6534e9f39279a18f905814",
+      "published_sha256": "4dd6e8dc184f2126f3742a270f8b88dc3db176c15d6534e9f39279a18f905814",
+      "original_bytes": 1937,
+      "published_bytes": 1937,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_EVIDENCE_ORBITS/test_core.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "97f9de9100b54c2bd0f854ade1b22a934d2c96db1fcc4313214c8e25081553f2",
+      "published_sha256": "97f9de9100b54c2bd0f854ade1b22a934d2c96db1fcc4313214c8e25081553f2",
+      "original_bytes": 3045,
+      "published_bytes": 3045,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "82374d5e9482e7f59d64a97371a5d40de5683c14c53d303443644d9b6f941335",
+      "published_sha256": "82374d5e9482e7f59d64a97371a5d40de5683c14c53d303443644d9b6f941335",
+      "original_bytes": 69,
+      "published_bytes": 69,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/diagnostics/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "36b67a1905922205d082d6662440891b373230d699be141320d14a154bf9eac2",
+      "published_sha256": "36b67a1905922205d082d6662440891b373230d699be141320d14a154bf9eac2",
+      "original_bytes": 69,
+      "published_bytes": 69,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/diagnostics/reduce_full_observer.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "86e86df8f56e239577524e869188f33a0155f3a152e0c12dae47b1a3a7fffc8f",
+      "published_sha256": "86e86df8f56e239577524e869188f33a0155f3a152e0c12dae47b1a3a7fffc8f",
+      "original_bytes": 3518,
+      "published_bytes": 3518,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/diagnostics/run_observer_capacity.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "22f1f8b14145131f39db55ea81e88e491bf3f816b06cd8e8615226cafb70d812",
+      "published_sha256": "22f1f8b14145131f39db55ea81e88e491bf3f816b06cd8e8615226cafb70d812",
+      "original_bytes": 16237,
+      "published_bytes": 16237,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/freeze_full_observer_protocol.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "4ff29a850903461ba3fc2f13014e2e28c4a8b8ec830da5a6bbd9db5842822285",
+      "published_sha256": "4ff29a850903461ba3fc2f13014e2e28c4a8b8ec830da5a6bbd9db5842822285",
+      "original_bytes": 1843,
+      "published_bytes": 1843,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/freeze_protocol.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "6338f3dc2a26713475bda3b5608d7e887c1b88bb311e9d16dc1fd838276d405f",
+      "published_sha256": "f2f493fa13490fdc201bce15db8245fa5343443a0116695d3d1d5e6049b8fd91",
+      "original_bytes": 5928,
+      "published_bytes": 5894,
+      "deployment_string_replacements": [
+        {
+          "kind": "legacy_storage_location",
+          "occurrences": 1
+        }
+      ]
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/router.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "ebfcaa852cbd5559a55b8098fc840045ded2c2a026e1dd0bad335955cc3bfbe8",
+      "published_sha256": "ebfcaa852cbd5559a55b8098fc840045ded2c2a026e1dd0bad335955cc3bfbe8",
+      "original_bytes": 2359,
+      "published_bytes": 2359,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/run_dev.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "7e163ba7cc7914aac47a3f7bacf99188d8b29339e252ea9dc90184cfc8a65a82",
+      "published_sha256": "7e163ba7cc7914aac47a3f7bacf99188d8b29339e252ea9dc90184cfc8a65a82",
+      "original_bytes": 14167,
+      "published_bytes": 14167,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/CAUSAL_MODALITY_INSTRUMENT/test_router.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "e79a9cb59a4670aa8a8900aa30a43a9ccdf7e4f3f5c58f949ea3c4a5cbc408aa",
+      "published_sha256": "e79a9cb59a4670aa8a8900aa30a43a9ccdf7e4f3f5c58f949ea3c4a5cbc408aa",
+      "original_bytes": 1495,
+      "published_bytes": 1495,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/FIXED30_RETRIEVAL/__init__.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "4e34d50e1e07a8362b5d73efb74656fa809b58e2fa4847778b71d661672f098c",
+      "published_sha256": "4e34d50e1e07a8362b5d73efb74656fa809b58e2fa4847778b71d661672f098c",
+      "original_bytes": 152,
+      "published_bytes": 152,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/FIXED30_RETRIEVAL/tool.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "1fc9ae12a88a5bf9599d3c8eac3efa9ec02a0dd789a79e678185631cca307c59",
+      "published_sha256": "1fc9ae12a88a5bf9599d3c8eac3efa9ec02a0dd789a79e678185631cca307c59",
+      "original_bytes": 10792,
+      "published_bytes": 10792,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/audit_fixed30_summary_planner_inspector.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "c2ad0323a2ed0daf168ee33ea7ef6a1cafccb8d5cb62fe293be9ca872636086b",
+      "published_sha256": "c2ad0323a2ed0daf168ee33ea7ef6a1cafccb8d5cb62fe293be9ca872636086b",
+      "original_bytes": 30083,
+      "published_bytes": 30083,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/audit_qwen3_videoseal_full1549.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "88bf9b255fe46a43b77805d04492c9003ca5be3f7a032949ec68b565f4c2aaea",
+      "published_sha256": "88bf9b255fe46a43b77805d04492c9003ca5be3f7a032949ec68b565f4c2aaea",
+      "original_bytes": 33758,
+      "published_bytes": 33758,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/run_fixed30_inspector_pilots.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "a6a811145acff5091ed58524f5accb494e77e66fc30cd47f8a2383315da81312",
+      "published_sha256": "a6a811145acff5091ed58524f5accb494e77e66fc30cd47f8a2383315da81312",
+      "original_bytes": 34182,
+      "published_bytes": 34182,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/prompts/fixed30_lossless_compactor_v1.txt",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "5d13001134d8b15cd0153a1268f1315d4e6bd6d36d2a97907bf5cd70a44a26d6",
+      "published_sha256": "5d13001134d8b15cd0153a1268f1315d4e6bd6d36d2a97907bf5cd70a44a26d6",
+      "original_bytes": 1151,
+      "published_bytes": 1151,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/scripts/launch_fixed30_released_aa_eval.sh",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "42e88e2ee52742fdfa68c15412182bf209de9c92cd8a28b674722e7a11073b71",
+      "published_sha256": "7b84821c6d455e41ae239d2bfa8f64b0b4c4883bda1d990a485ef600d8bec793",
+      "original_bytes": 6109,
+      "published_bytes": 6027,
+      "deployment_string_replacements": [
+        {
+          "kind": "legacy_project_location",
+          "occurrences": 1
+        },
+        {
+          "kind": "python_location",
+          "occurrences": 1
+        }
+      ]
+    },
+    {
+      "path": "source/scripts/launch_videoseal_inspector.sh",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "e8ca36bc239e052b959412385fc21a6227dbe6d48e6e365fbccd3e726e44d169",
+      "published_sha256": "1a33fca9743438fb15a55bf56c5c95071c4185f6bd10b90e15d3f1aeb78cd432",
+      "original_bytes": 2210,
+      "published_bytes": 2171,
+      "deployment_string_replacements": [
+        {
+          "kind": "python_location",
+          "occurrences": 1
+        }
+      ]
+    },
+    {
+      "path": "source/scripts/run_videoseal_decoupled_eval.py",
+      "origin": "actual_terminal_capture",
+      "original_sha256": "df9f7dd02016d8540a1e4bc1fb13d4bf958aae414ab52827ab8e1cd50fae1e1e",
+      "published_sha256": "ce2610b8e8e4d331c67bf26b3eed1f49109d3e1966c0bc924647f82fe34525b3",
+      "original_bytes": 34058,
+      "published_bytes": 34015,
+      "deployment_string_replacements": [
+        {
+          "kind": "legacy_project_location",
+          "occurrences": 1
+        }
+      ]
+    },
+    {
+      "path": "source/methods/TOPOLOGICAL_EVIDENCE_COMPILER/__init__.py",
+      "origin": "actual_supplemental_source",
+      "original_sha256": "df19b62a9cbd1d76171b8edc4bd02cf850ff5912dd8dc1b944ff422dcccd43e4",
+      "published_sha256": "df19b62a9cbd1d76171b8edc4bd02cf850ff5912dd8dc1b944ff422dcccd43e4",
+      "original_bytes": 156,
+      "published_bytes": 156,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/methods/TOPOLOGICAL_EVIDENCE_COMPILER/router.py",
+      "origin": "actual_supplemental_source",
+      "original_sha256": "4b1e5121684118d265d9638425621a7e936684350857d4ecd9ca5764a2f0d18f",
+      "published_sha256": "4b1e5121684118d265d9638425621a7e936684350857d4ecd9ca5764a2f0d18f",
+      "original_bytes": 1020,
+      "published_bytes": 1020,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/long_video_composition.py",
+      "origin": "actual_supplemental_source",
+      "original_sha256": "7554e19b8d92606f44b7a33f4b6265c0b7744b36423fbd7689e920c28fa31c03",
+      "published_sha256": "7554e19b8d92606f44b7a33f4b6265c0b7744b36423fbd7689e920c28fa31c03",
+      "original_bytes": 19611,
+      "published_bytes": 19611,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/outcome_linked_audit.py",
+      "origin": "actual_supplemental_source",
+      "original_sha256": "8512417b3d7c15dc03fe0d98dda280103d69907ad7a14fcd66842149d834af87",
+      "published_sha256": "8512417b3d7c15dc03fe0d98dda280103d69907ad7a14fcd66842149d834af87",
+      "original_bytes": 31445,
+      "published_bytes": 31445,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/run_reference_oracle_ladder.py",
+      "origin": "actual_supplemental_source",
+      "original_sha256": "289b93c17b60a12af303b2a83ed91e5f4158da59fa01e9398331ce5527ef9191",
+      "published_sha256": "289b93c17b60a12af303b2a83ed91e5f4158da59fa01e9398331ce5527ef9191",
+      "original_bytes": 24190,
+      "published_bytes": 24190,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/research/diagnostics/audit_qwen3_planner_swap_pilot.py",
+      "origin": "actual_supplemental_source",
+      "original_sha256": "80b0542732d33200ee8b80dec8d4c29a3c075f0365353b5ae456600cf22a1c6c",
+      "published_sha256": "80b0542732d33200ee8b80dec8d4c29a3c075f0365353b5ae456600cf22a1c6c",
+      "original_bytes": 16184,
+      "published_bytes": 16184,
+      "deployment_string_replacements": []
+    },
+    {
+      "path": "source/scripts/launch_original_bm25_no_fixed30_eval.sh",
+      "origin": "actual_deployed_bm25_launcher",
+      "original_sha256": "16cf2f4260741246c3c5cf83569f4790c2c704ca7917a65931150733dde3ead8",
+      "published_sha256": "7a3309e897fe0ff62ee386dcaace7577ef6f9724d7d0cdfe0d4d50abae613616",
+      "original_bytes": 6073,
+      "published_bytes": 5991,
+      "deployment_string_replacements": [
+        {
+          "kind": "legacy_project_location",
+          "occurrences": 1
+        },
+        {
+          "kind": "python_location",
+          "occurrences": 1
+        }
+      ]
+    }
+  ]
+}
