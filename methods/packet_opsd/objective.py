@@ -73,3 +73,37 @@ def packet_coefficient(student, independent_student, teacher, *, kernel) -> Pack
     pp = float(kernel(student, independent_student))
     pq = float(kernel(student, teacher))
     return PacketCoefficient(2.0 * (pp - pq), pp, pq)
+
+
+@dataclass(frozen=True)
+class SymmetricPacketCoefficients:
+    first_value: float
+    second_value: float
+    student_similarity: float
+    first_teacher_similarity: float
+    second_teacher_similarity: float
+
+
+def symmetric_packet_coefficients(
+    student, independent_student, teacher, *, kernel,
+) -> SymmetricPacketCoefficients:
+    """Coefficients of an unbiased, exchange-symmetrized MMD² gradient.
+
+    For iid complete candidate draws a,a' from p and independent b from frozen
+    q, conditional on fixed H/F, use
+
+      (k(a,a') - k(a,b)) grad log p(a)
+      + (k(a,a') - k(a',b)) grad log p(a').
+
+    There is no additional factor of two. This is the average of the old
+    asymmetric estimator and its a/a' swap. For a symmetric kernel it is the
+    conditional expectation given the unordered pair of full completions and
+    b, so its covariance cannot increase when second moments are finite.
+    It needs no additional candidate generation or environment calls, but
+    both student completions must be scored. It does not change the kernel or
+    guarantee a nonzero gradient for any particular draw.
+    """
+    pp = float(kernel(student, independent_student))
+    pq = float(kernel(student, teacher))
+    pqp = float(kernel(independent_student, teacher))
+    return SymmetricPacketCoefficients(pp - pq, pp - pqp, pp, pq, pqp)

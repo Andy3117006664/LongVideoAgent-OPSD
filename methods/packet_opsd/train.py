@@ -16,7 +16,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .objective import (INSPECTION_PREFIX, candidate_spans, hindsight_messages,
-                        packet_coefficient)
+                        symmetric_packet_coefficients)
 
 
 def configure_baseline(source: Path, *, inspector_endpoint: str, compactor_endpoint: str):
@@ -136,6 +136,35 @@ def append(path: Path, row: dict):
         handle.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n")
 
 
+def capture_gradients(parameters):
+    return [None if p.grad is None else p.grad.detach().clone() for p in parameters]
+
+
+def gradient_increment(parameters, before):
+    """Measure the contribution that survived accumulation in parameter dtype.
+
+    A nonzero Python coefficient can still round away against existing FP32
+    gradients. Measure actual accumulated differences, rather than claiming
+    the total (usually token-KL-dominated) norm proves the packet term worked.
+    """
+    import torch
+    with torch.no_grad():
+        base, differences = [], []
+        for parameter, old in zip(parameters, before):
+            if old is not None:
+                base.append(old.double().square().sum())
+            if parameter.grad is not None:
+                difference = parameter.grad.detach().float() if old is None else parameter.grad.detach().float() - old.float()
+                differences.append(difference.double().square().sum())
+        norm = float(torch.stack(differences).sum().sqrt()) if differences else 0.0
+        base_norm = float(torch.stack(base).sum().sqrt()) if base else 0.0
+    if not math.isfinite(norm) or not math.isfinite(base_norm):
+        raise RuntimeError("nonfinite packet gradient diagnostics")
+    return {"packet_gradient_norm": norm, "actual_accumulated_packet_delta_norm": norm,
+            "gradient_before_packet_norm": base_norm,
+            "packet_gradient_ratio": norm / base_norm if base_norm else None}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True)
@@ -177,6 +206,7 @@ def main(argv=None):
                    "sampler_contract": "planned-frame-packet-approximation-with-factual-parity",
                    "training_gold_used": False, "candidate_tool_calls": 0,
                    "candidate_draws_per_record": {"student": 2, "teacher": 1},
+                   "packet_estimator": "symmetric-score-function",
                    "baseline_environment": baseline_env})
     (args.output / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     import torch
@@ -189,7 +219,7 @@ def main(argv=None):
     policy = HFPolicy.load(args.model, rank=args.rank, max_context=args.max_context)
     optimizer = torch.optim.AdamW(policy.parameters(), lr=args.learning_rate, weight_decay=0.0)
     sampler = SamplerSpec()
-    updates, attempts, total_records, nonzero_packet = 0, 0, 0, 0
+    updates, attempts, total_records, nonzero_packet, packet_gradient_updates = 0, 0, 0, 0, 0
     task_order = list(tasks)
     random.shuffle(task_order)
     try:
@@ -234,24 +264,38 @@ def main(argv=None):
                                        max_new_tokens=args.candidate_tokens, temperature=args.temperature)
                     b = policy.sample(teacher_messages, adapter="teacher", prefix=INSPECTION_PREFIX,
                                       max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                    append(args.output / "candidate_audit.private.jsonl", {
+                        "attempt": attempts, "uid_hash": uid_hash, "step_index": record["step_index"],
+                        "completions": [{"role": role, "text": c.text, "complete": c.complete,
+                                         "token_count": len(c.token_ids)}
+                                        for role, c in zip(("student", "independent_student", "teacher"), (a, ap, b))]})
                     packets = [build_action_packet(media, candidate_spans(c), sampler) for c in (a, ap, b)]
-                    coefficient = packet_coefficient(*packets, kernel=lambda x, y: gaussian_packet_kernel(x, y, bandwidth=args.bandwidth))
-                    groups.append((record, teacher_messages, a, packets, coefficient))
+                    coefficients = symmetric_packet_coefficients(*packets, kernel=lambda x, y: gaussian_packet_kernel(x, y, bandwidth=args.bandwidth))
+                    groups.append((record, teacher_messages, (a, ap, b), packets, coefficients))
                 optimizer.zero_grad(set_to_none=True)
                 values = []
-                for record, teacher_messages, candidate, packets, coefficient in groups:
+                for record, teacher_messages, candidates, packets, coefficients in groups:
                     kl = policy.hindsight_kl(record["completion"], teacher_messages, temperature=args.temperature)
                     kl_value = float(kl.detach())
                     (kl / len(groups)).backward()
-                    score_value = None
-                    if args.packet_weight and coefficient.value != 0:
-                        score = policy.sequence_log_prob(candidate, temperature=args.temperature)
-                        score_value = float(score.detach())
-                        (args.packet_weight * coefficient.value * score / len(groups)).backward()
-                    values.append({"reverse_kl": kl_value, "packet_coefficient": coefficient.value,
-                                   "student_kernel": coefficient.student_similarity,
-                                   "teacher_kernel": coefficient.teacher_similarity,
-                                   "score_log_probability": score_value,
+                    before_packet = capture_gradients(policy.parameters())
+                    score_values = []
+                    for candidate, value in zip(candidates, (coefficients.first_value, coefficients.second_value)):
+                        if args.packet_weight and value != 0:
+                            score = policy.sequence_log_prob(candidate, temperature=args.temperature)
+                            score_values.append(float(score.detach()))
+                            (args.packet_weight * value * score / len(groups)).backward()
+                        else:
+                            score_values.append(None)
+                    increment = gradient_increment(policy.parameters(), before_packet)
+                    del before_packet
+                    values.append({"reverse_kl": kl_value,
+                                   "packet_coefficients": [coefficients.first_value, coefficients.second_value],
+                                   "student_kernel": coefficients.student_similarity,
+                                   "teacher_kernels": [coefficients.first_teacher_similarity, coefficients.second_teacher_similarity],
+                                   "score_log_probabilities": score_values, **increment,
+                                   "candidate_complete": [c.complete for c in candidates],
+                                   "candidate_token_counts": [len(c.token_ids) for c in candidates],
                                    "candidate_valid": [p.valid for p in packets],
                                    "candidate_frame_counts": [len(p.frames) for p in packets]})
                 norm = torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0, error_if_nonfinite=True)
@@ -261,7 +305,8 @@ def main(argv=None):
                 policy.update_teacher(args.ema_decay)
                 updates += 1
                 total_records += len(groups)
-                nonzero_packet += sum(v["packet_coefficient"] != 0 and v["score_log_probability"] is not None for v in values)
+                nonzero_packet += sum(any(score is not None for score in v["score_log_probabilities"]) for v in values)
+                packet_gradient_updates += sum(v["packet_gradient_norm"] > 0 for v in values)
                 row = {"event": "update", "step": updates, "attempt": attempts, "uid_hash": uid_hash,
                        "gradient_norm": float(norm), "records": values,
                        "candidate_tool_calls": 0, "ema_updated": True}
@@ -276,6 +321,7 @@ def main(argv=None):
         policy.save(args.output / f"step-{updates}", optimizer=optimizer, step=updates, config=config)
         result = {"state": "COMPLETED", "updates": updates, "attempts": attempts,
                   "eligible_records": total_records, "nonzero_packet_updates": nonzero_packet,
+                  "packet_gradient_updates": packet_gradient_updates,
                   "candidate_tool_calls": 0, "accuracy_evaluated": False,
                   "sampler_contract": config["sampler_contract"]}
         (args.output / "TRAIN_RESULT.json").write_text(json.dumps(result, indent=2) + "\n")

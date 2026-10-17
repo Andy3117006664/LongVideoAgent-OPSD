@@ -28,17 +28,23 @@ For independent a,a' ~ p_theta(.|H, inspection prefix), b ~ q_EMA(.|H,F,prefix):
 
 ```
 L_packet = MMD_k²(S#p, S#q)
-c = 2 [k(S(a), S(a')) - k(S(a), S(b))]
-g_packet = stop_gradient(c) * grad_theta log p_theta(a | H, prefix)
+c_a  = k(S(a), S(a')) - k(S(a), S(b))
+c_a' = k(S(a), S(a')) - k(S(a'), S(b))
+g_packet = stop_gradient(c_a)  * grad_theta log p_theta(a  | H, prefix)
+         + stop_gradient(c_a') * grad_theta log p_theta(a' | H, prefix)
 ```
 
-`objective.py` implements this coefficient; `policy.py` scores the exact sampled
+`objective.py` implements these coefficients; `policy.py` scores the exact sampled
 token IDs using the same positive temperature and no top-k/top-p truncation.
-The score is a **sequence sum**, not a token average. The coefficient/surrogate
+The score is a **sequence sum**, not a token average. The coefficients/surrogate
 can be negative and is not a logged nonnegative MMD estimate. Conditional on
 fixed H/F, this is the MMD score-function gradient. It is not the gradient of
 the distribution that generated H/F. The factual action that produced F cannot
-serve as an independent MMD draw and is never reused as one.
+serve as an independent MMD draw and is never reused as one. This symmetric
+estimator averages the two possible orderings of the student pair. It has the
+same expectation as `2*(kpp-kpq)*score(a)` and cannot increase covariance when
+second moments exist. It requires one extra sequence scoring/backward, with
+the same two student / one teacher generations and unchanged tool budget.
 
 All candidate draws precede the single optimizer update. There are no replay
 epochs or stale-policy samples. Invalid or truncated argument draws map to one
@@ -116,8 +122,14 @@ baseline budget; stochastic training is an explicit change, not a claim that
 baseline inference used .7.
 
 `metrics.jsonl` records fresh attempts, factual-parity rejection, three candidate
-validities/frame counts, kernel coefficients, score probability, gradient norm,
-and EMA updates. `step-N/` contains student/teacher adapters, tokenizer and
+validities/frame counts, kernel coefficients, score probabilities, gradient norm,
+and EMA updates. It separately measures the **actual accumulated packet gradient
+increment before clipping**, its norm and its ratio to the gradient present
+before the packet terms. A nonzero scalar coefficient alone does not certify
+a contribution that survives floating-point accumulation. The two packet terms
+can also cancel. Private candidate text/completion lengths are retained in
+`candidate_audit.private.jsonl`; never commit it or the trajectories.
+`step-N/` contains student/teacher adapters, tokenizer and
 optimizer/RNG state. There is no automatic resume interface; do not imply that
 loading an adapter alone resumes an optimizer. Private trajectories/questions
 and weights must not be committed to this public repository.
@@ -159,7 +171,7 @@ the MMD gradient by exact enumeration and finite differences, and exercise the
 actual original agent loop including terminal commit / forced exclusion. Tiny
 random Qwen3/LoRA tests (no downloads) verify scoring against full logits and
 generation probabilities, student-only gradients/updates, and the EMA. These
-four model tests skip when Torch/Transformers/PEFT are unavailable; run them in
+five model tests skip when Torch/Transformers/PEFT are unavailable; run them in
 the actual training environment before a GPU job.
 
 This implements a testable execution-aware OPSD prototype. Its mathematical

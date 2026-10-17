@@ -135,6 +135,52 @@ class PolicyTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.policy.sequence_log_prob(completion, temperature=0.7)
 
+    def test_actual_gradient_increment_detects_fp32_rounding_and_none_baseline(self):
+        from methods.packet_opsd.train import capture_gradients, gradient_increment
+
+        named = dict(self.policy.model.named_parameters())
+        parameters = self.policy.parameters()
+        student_ids = {id(value) for name, value in named.items() if ".student." in name}
+        teacher_ids = {id(value) for name, value in named.items() if ".teacher." in name}
+        self.assertEqual({id(value) for value in parameters}, student_ids)
+        self.assertTrue(student_ids.isdisjoint(teacher_ids))
+        teacher = next(value for name, value in named.items() if ".teacher." in name)
+        teacher.grad = torch.full_like(teacher, 42.0)
+        for parameter in parameters:
+            parameter.grad = None
+        parameter = parameters[0]
+        self.assertEqual(parameter.dtype, torch.float32)
+        parameter.grad = torch.zeros_like(parameter)
+        parameter.grad.view(-1)[0] = 1.0
+        before = capture_gradients(parameters)
+        self.assertEqual(len(before), len(parameters))
+        self.assertEqual(sum(value is not None for value in before), 1)
+        parameter.grad.view(-1)[0].add_(1e-30)
+        rounded = gradient_increment(parameters, before)
+        self.assertEqual(rounded["actual_accumulated_packet_delta_norm"], 0.0)
+        self.assertEqual(rounded["packet_gradient_norm"], 0.0)
+        self.assertEqual(rounded["gradient_before_packet_norm"], 1.0)
+        self.assertEqual(rounded["packet_gradient_ratio"], 0.0)
+
+        parameter.grad.view(-1)[0].add_(0.125)
+        retained = gradient_increment(parameters, before)
+        self.assertEqual(retained["actual_accumulated_packet_delta_norm"], 0.125)
+        self.assertEqual(retained["packet_gradient_norm"], 0.125)
+        self.assertEqual(retained["gradient_before_packet_norm"], 1.0)
+        self.assertEqual(retained["packet_gradient_ratio"], 0.125)
+
+        parameter.grad = None
+        before = capture_gradients(parameters)
+        self.assertTrue(all(value is None for value in before))
+        parameter.grad = torch.zeros_like(parameter)
+        parameter.grad.view(-1)[0] = 1e-30
+        fresh = gradient_increment(parameters, before)
+        self.assertGreater(fresh["actual_accumulated_packet_delta_norm"], 0.0)
+        self.assertAlmostEqual(fresh["actual_accumulated_packet_delta_norm"] / 1e-30, 1.0, places=6)
+        self.assertEqual(fresh["gradient_before_packet_norm"], 0.0)
+        self.assertIsNone(fresh["packet_gradient_ratio"])
+        self.assertTrue(torch.all(teacher.grad == 42.0))
+
 
 if __name__ == "__main__":
     unittest.main()

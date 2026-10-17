@@ -10,6 +10,7 @@ import unittest
 
 from methods.packet_opsd.objective import (
     candidate_spans, hindsight_messages, packet_coefficient,
+    symmetric_packet_coefficients,
 )
 
 
@@ -53,7 +54,75 @@ def exact_score_gradient(logits, teacher):
     return gradient
 
 
+def exact_symmetric_score_gradient(logits, teacher):
+    student = softmax(logits)
+    gradient = [0.0] * len(student)
+    for i, pi in enumerate(student):
+        for j, pj in enumerate(student):
+            for k, qk in enumerate(teacher):
+                coefficient = symmetric_packet_coefficients(
+                    PACKETS[i], PACKETS[j], PACKETS[k], kernel=kernel,
+                )
+                for coordinate in range(len(student)):
+                    first_score = float(i == coordinate) - student[coordinate]
+                    second_score = float(j == coordinate) - student[coordinate]
+                    gradient[coordinate] += pi * pj * qk * (
+                        coefficient.first_value * first_score
+                        + coefficient.second_value * second_score
+                    )
+    return gradient
+
+
 class PacketObjectiveTest(unittest.TestCase):
+    def test_symmetric_score_gradient_matches_finite_difference_and_asymmetric_expectation(self):
+        logits = [0.4, -0.2, 0.8, -0.7]
+        teacher = [0.1, 0.4, 0.2, 0.3]
+        actual = exact_symmetric_score_gradient(logits, teacher)
+        asymmetric = exact_score_gradient(logits, teacher)
+        epsilon = 1e-5
+        for coordinate in range(len(logits)):
+            plus, minus = list(logits), list(logits)
+            plus[coordinate] += epsilon
+            minus[coordinate] -= epsilon
+            expected = (mmd(plus, teacher) - mmd(minus, teacher)) / (2 * epsilon)
+            self.assertAlmostEqual(actual[coordinate], expected, places=9)
+            self.assertAlmostEqual(actual[coordinate], asymmetric[coordinate], places=12)
+
+    def test_symmetric_estimator_keeps_second_score_when_second_packet_matches_teacher(self):
+        value = symmetric_packet_coefficients(PACKETS[0], PACKETS[2], PACKETS[2], kernel=kernel)
+        self.assertEqual(value.first_value, 0.0)
+        self.assertLess(value.second_value, 0.0)
+        self.assertEqual(value.second_teacher_similarity, 1.0)
+        self.assertEqual(value.second_value, value.student_similarity - 1.0)
+
+    def test_symmetric_coefficients_are_swap_equivariant(self):
+        value = symmetric_packet_coefficients(PACKETS[0], PACKETS[2], PACKETS[0], kernel=kernel)
+        swapped = symmetric_packet_coefficients(PACKETS[2], PACKETS[0], PACKETS[0], kernel=kernel)
+        self.assertEqual(value.first_value, swapped.second_value)
+        self.assertEqual(value.second_value, swapped.first_value)
+        self.assertEqual(value.student_similarity, swapped.student_similarity)
+        self.assertEqual(value.first_teacher_similarity, swapped.second_teacher_similarity)
+        self.assertEqual(value.second_teacher_similarity, swapped.first_teacher_similarity)
+
+    def test_symmetrization_reduces_exact_gradient_variance_without_new_draws(self):
+        logits, teacher = [0.4, -0.2, 0.8, -0.7], [0.1, 0.4, 0.2, 0.3]
+        student = softmax(logits)
+        asymmetric_second_moment, symmetric_second_moment = 0.0, 0.0
+        for i, pi in enumerate(student):
+            for j, pj in enumerate(student):
+                for k, qk in enumerate(teacher):
+                    old = packet_coefficient(PACKETS[i], PACKETS[j], PACKETS[k], kernel=kernel)
+                    new = symmetric_packet_coefficients(PACKETS[i], PACKETS[j], PACKETS[k], kernel=kernel)
+                    first = [float(i == coordinate) - student[coordinate] for coordinate in range(len(student))]
+                    second = [float(j == coordinate) - student[coordinate] for coordinate in range(len(student))]
+                    asymmetric_second_moment += pi * pj * qk * sum((old.value * score) ** 2 for score in first)
+                    symmetric_second_moment += pi * pj * qk * sum(
+                        (new.first_value * a + new.second_value * ap) ** 2 for a, ap in zip(first, second)
+                    )
+        # The means were checked equal above, so comparing second moments is
+        # exactly comparing the trace of the gradient covariance matrices.
+        self.assertLess(symmetric_second_moment, asymmetric_second_moment)
+
     def test_exact_mmd_score_gradient_matches_finite_difference(self):
         logits = [0.4, -0.2, 0.8, -0.7]
         teacher = [0.1, 0.4, 0.2, 0.3]
@@ -75,6 +144,8 @@ class PacketObjectiveTest(unittest.TestCase):
         logits = [math.log(value) for value in student]
         self.assertAlmostEqual(mmd(logits, teacher), 0.0, places=12)
         for coordinate in exact_score_gradient(logits, teacher):
+            self.assertAlmostEqual(coordinate, 0.0, places=12)
+        for coordinate in exact_symmetric_score_gradient(logits, teacher):
             self.assertAlmostEqual(coordinate, 0.0, places=12)
 
     def test_coefficient_can_be_negative_and_is_not_an_mmd_value(self):
