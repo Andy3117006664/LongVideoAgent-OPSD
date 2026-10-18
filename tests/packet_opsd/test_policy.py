@@ -1,0 +1,289 @@
+"""Optional tiny Qwen3/LoRA checks. No downloaded weights or tokenizer."""
+
+import importlib.util
+import hashlib
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+
+AVAILABLE = all(importlib.util.find_spec(name) is not None
+                for name in ("torch", "transformers", "peft"))
+
+if AVAILABLE:
+    import torch
+    from peft import LoraConfig, get_peft_model
+    from transformers import Qwen3Config, Qwen3ForCausalLM
+    from methods.packet_opsd.policy import Completion, ContextOverflow, HFPolicy
+
+
+class TinyTokenizer:
+    pad_token_id = 0
+    eos_token_id = 2
+
+    def apply_chat_template(self, messages, *, tokenize=False, add_generation_prompt=True):
+        assert not tokenize and add_generation_prompt
+        return "|".join(message["content"] for message in messages) + "|assistant:"
+
+    def encode(self, text, *, add_special_tokens=False):
+        assert not add_special_tokens
+        return [3 + ord(character) % 61 for character in text]
+
+    def decode(self, token_ids, *, skip_special_tokens=True):
+        return " ".join(str(value) for value in token_ids if value not in (0, 2))
+
+    def save_pretrained(self, path):
+        Path(path).mkdir(parents=True)
+        (Path(path) / "tokenizer_config.json").write_text('{"synthetic": true}\n')
+
+
+@unittest.skipUnless(AVAILABLE, "torch/transformers/peft are not installed")
+class PolicyTest(unittest.TestCase):
+    def setUp(self):
+        torch.manual_seed(37)
+        config = Qwen3Config(
+            vocab_size=64, hidden_size=32, intermediate_size=64,
+            num_hidden_layers=1, num_attention_heads=2, num_key_value_heads=1,
+            head_dim=16, max_position_embeddings=128, attention_dropout=0.0,
+            pad_token_id=0, bos_token_id=1, eos_token_id=2,
+        )
+        base = Qwen3ForCausalLM(config)
+        adapter = LoraConfig(r=2, lora_alpha=4, lora_dropout=0,
+                             target_modules=["q_proj", "v_proj"],
+                             task_type="CAUSAL_LM", bias="none")
+        model = get_peft_model(base, adapter, adapter_name="student")
+        model.add_adapter("teacher", adapter)
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        self.policy = HFPolicy(model, TinyTokenizer(), max_context=128)
+        self.policy.update_teacher(0.0)
+        self.messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"}]
+
+    def test_checkpoint_preserves_the_bound_identity_path_and_hash(self):
+        from methods.packet_opsd.identities import resolve_identity_mapping
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            mapping = root / "new-mapping.json"
+            mapping.write_text(json.dumps([
+                {"ordinal": i, "qid": str(i), "video_id": f"video-{i}",
+                 "question_sha256": hashlib.sha256(f"question {i}".encode()).hexdigest()}
+                for i in range(300)
+            ]))
+            bound = resolve_identity_mapping(mapping)
+            config = dict(bound.metadata(), training_split_policy="video-disjoint")
+            optimizer = torch.optim.AdamW(self.policy.parameters(), lr=1e-5)
+            self.policy.save(root / "checkpoint", optimizer=optimizer, step=0, config=config)
+            saved = torch.load(root / "checkpoint/training_state.pt", map_location="cpu", weights_only=False)
+            self.assertEqual(saved["config"], config)
+            self.assertEqual(saved["config"]["identity_mapping"], str(mapping.resolve()))
+            self.assertEqual(saved["config"]["identity_mapping_sha256"], hashlib.sha256(mapping.read_bytes()).hexdigest())
+
+    def test_sequence_log_probability_matches_full_logits_and_generation(self):
+        temperature = 0.7
+        torch.manual_seed(22)
+        completion = self.policy.sample(self.messages, max_new_tokens=6, temperature=temperature)
+        actual = self.policy.sequence_log_prob(completion, temperature=temperature)
+        self.policy.model.eval()
+        ids = torch.tensor([completion.prompt_ids + completion.token_ids])
+        with torch.no_grad():
+            logits = self.policy.model(input_ids=ids, attention_mask=torch.ones_like(ids),
+                                       use_cache=False).logits[0]
+            start = len(completion.prompt_ids) - 1
+            logits = logits[start:start + len(completion.token_ids)].float() / temperature
+            targets = torch.tensor(completion.token_ids)
+            expected = logits.log_softmax(-1).gather(1, targets[:, None]).sum()
+        torch.testing.assert_close(actual.detach(), expected, rtol=1e-5, atol=1e-5)
+
+        # The model's own generation scores include its temperature processor.
+        # Compare their exact path probability with our differentiable scorer.
+        torch.manual_seed(22)
+        prompt = torch.tensor([completion.prompt_ids])
+        with torch.no_grad():
+            generated = self.policy.model.generate(
+                input_ids=prompt, attention_mask=torch.ones_like(prompt),
+                max_new_tokens=6, do_sample=True, temperature=temperature,
+                top_k=0, top_p=1.0, repetition_penalty=1.0, use_cache=True,
+                pad_token_id=0, eos_token_id=2,
+                return_dict_in_generate=True, output_scores=True,
+            )
+        self.assertEqual(generated.sequences[0, len(completion.prompt_ids):].tolist(), completion.token_ids)
+        generated_score = sum(
+            logits[0].float().log_softmax(-1)[token]
+            for logits, token in zip(generated.scores, completion.token_ids)
+        )
+        torch.testing.assert_close(actual.detach(), generated_score, rtol=1e-5, atol=1e-5)
+
+    def test_optimizer_updates_only_student_then_ema_updates_frozen_teacher(self):
+        parameters = dict(self.policy.model.named_parameters())
+        before = {name: value.detach().clone() for name, value in parameters.items()}
+        completion = Completion("", [7, 11, 13], self.policy.prompt_ids(self.messages), True)
+        optimizer = torch.optim.AdamW(self.policy.parameters(), lr=0.05, weight_decay=0)
+        optimizer.zero_grad(set_to_none=True)
+        loss = -self.policy.sequence_log_prob(completion, temperature=0.7)
+        self.assertTrue(self.policy.model.training)  # checkpointing must stay enabled
+        loss.backward()
+        self.assertTrue(any(value.grad is not None for name, value in parameters.items() if ".student." in name))
+        self.assertTrue(all(value.grad is None for name, value in parameters.items() if ".student." not in name))
+        optimizer.step()
+        self.assertTrue(any(not torch.equal(value, before[name]) for name, value in parameters.items()
+                            if ".student." in name))
+        for name, value in parameters.items():
+            if ".student." not in name:
+                torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+        self.policy.update_teacher(0.8)
+        for name, value in parameters.items():
+            if ".teacher." in name:
+                student = parameters[name.replace(".teacher.", ".student.")]
+                torch.testing.assert_close(value, before[name] * 0.8 + student.detach() * 0.2)
+                self.assertFalse(value.requires_grad)
+            elif ".student." in name:
+                self.assertTrue(value.requires_grad)
+
+    def test_configured_eos_stopped_sequence_keeps_exact_sampling_log_probability(self):
+        # Making every vocabulary item terminal guarantees a one-token path,
+        # including terminals other than the tokenizer's single EOS ID.
+        eos_ids = list(range(self.policy.model.config.vocab_size))
+        self.policy.model.generation_config.eos_token_id = eos_ids
+        temperature = 0.7
+        torch.manual_seed(22)
+        completion = self.policy.sample(self.messages, prefix="p", max_new_tokens=8,
+                                        temperature=temperature)
+        self.assertEqual(len(completion.token_ids), 1)
+        self.assertTrue(completion.complete)
+        self.assertEqual(completion.stop_reason, "eos")
+        self.assertEqual(completion.stop_token_id, completion.token_ids[-1])
+        actual = self.policy.sequence_log_prob(completion, temperature=temperature)
+        self.policy.model.eval()
+        prompt = torch.tensor([completion.prompt_ids])
+        torch.manual_seed(22)
+        with torch.no_grad():
+            generated = self.policy.model.generate(
+                input_ids=prompt, attention_mask=torch.ones_like(prompt),
+                max_new_tokens=8, do_sample=True, temperature=temperature,
+                top_k=0, top_p=1.0, repetition_penalty=1.0, use_cache=True,
+                pad_token_id=0, eos_token_id=eos_ids,
+                return_dict_in_generate=True, output_scores=True,
+            )
+        self.assertEqual(generated.sequences[0, len(completion.prompt_ids):].tolist(), completion.token_ids)
+        expected = generated.scores[0][0].float().log_softmax(-1)[completion.token_ids[0]]
+        torch.testing.assert_close(actual.detach(), expected, rtol=1e-5, atol=1e-5)
+
+    def test_pilot_generation_audit_returns_only_scalar_and_matches_differentiable_score(self):
+        self.assertFalse(self.policy.audit_generation_scores)
+        unaudited = self.policy.sample(self.messages, max_new_tokens=2, temperature=0.7)
+        self.assertIsNone(unaudited.generation_log_probability)
+        self.policy.audit_generation_scores = True
+        torch.manual_seed(22)
+        completion = self.policy.sample(self.messages, prefix="p", max_new_tokens=6,
+                                        temperature=0.7)
+        self.assertIsInstance(completion.generation_log_probability, float)
+        self.assertTrue(completion.token_ids)
+        self.assertFalse(any(isinstance(value, torch.Tensor) for value in vars(completion).values()))
+        differentiated = self.policy.sequence_log_prob(completion, temperature=0.7)
+        self.assertTrue(differentiated.requires_grad)
+        self.assertAlmostEqual(float(differentiated.detach()), completion.generation_log_probability,
+                               delta=1e-5)
+        differentiated.backward()
+        self.assertTrue(any(parameter.grad is not None for parameter in self.policy.parameters()))
+
+    def test_checkpoint_processors_do_not_change_audited_sampling_distribution(self):
+        # A full EOS set makes every sampled path terminal after one token.
+        # Deliberately poisonous checkpoint processors must be isolated even
+        # when they were not among the explicit generate kwargs.
+        config = self.policy.model.generation_config
+        # This checkpoint-version boundary enables model-default merging in
+        # Transformers 4.57 unless use_model_defaults=False is explicit.
+        config.transformers_version = "4.57.1"
+        config.eos_token_id = list(range(self.policy.model.config.vocab_size))
+        self.policy.audit_generation_scores = True
+        torch.manual_seed(22)
+        clean = self.policy.sample(self.messages, prefix="p", max_new_tokens=6,
+                                   temperature=0.7)
+        config.min_p = 0.95
+        config.typical_p = 0.01
+        config.suppress_tokens = list(range(self.policy.model.config.vocab_size - 1))
+        config.forced_eos_token_id = self.policy.model.config.vocab_size - 1
+        torch.manual_seed(22)
+        poisoned = self.policy.sample(self.messages, prefix="p", max_new_tokens=6,
+                                      temperature=0.7)
+        self.assertEqual(poisoned.token_ids, clean.token_ids)
+        self.assertEqual(len(poisoned.token_ids), 1)
+        self.assertTrue(poisoned.complete)
+        self.assertEqual(poisoned.stop_reason, "eos")
+        self.assertEqual(poisoned.generation_log_probability, clean.generation_log_probability)
+        scored = self.policy.sequence_log_prob(poisoned, temperature=0.7)
+        self.assertAlmostEqual(float(scored.detach()), poisoned.generation_log_probability,
+                               delta=1e-5)
+
+    def test_hindsight_kl_has_student_gradient_and_no_teacher_gradient(self):
+        completion = Completion("", [7, 11, 13], self.policy.prompt_ids(self.messages), True)
+        teacher_messages = self.messages + [{"role": "user", "content": "natural feedback"}]
+        loss = self.policy.hindsight_kl(completion, teacher_messages, temperature=0.7)
+        self.assertTrue(torch.isfinite(loss))
+        self.assertGreaterEqual(float(loss.detach()), -1e-6)
+        self.assertTrue(self.policy.model.training)
+        loss.backward()
+        parameters = dict(self.policy.model.named_parameters())
+        self.assertTrue(any(value.grad is not None for name, value in parameters.items() if ".student." in name))
+        self.assertTrue(all(value.grad is None and not value.requires_grad
+                            for name, value in parameters.items() if ".teacher." in name))
+
+    def test_context_and_stochastic_score_guards(self):
+        with self.assertRaises(ContextOverflow):
+            self.policy.sample(self.messages, max_new_tokens=129)
+        completion = Completion("", [7], self.policy.prompt_ids(self.messages), True)
+        with self.assertRaises(ValueError):
+            self.policy.sequence_log_prob(completion, temperature=0)
+        self.policy.model.config.attention_dropout = 0.1
+        with self.assertRaises(ValueError):
+            self.policy.sequence_log_prob(completion, temperature=0.7)
+
+    def test_actual_gradient_increment_detects_fp32_rounding_and_none_baseline(self):
+        from methods.packet_opsd.train import capture_gradients, gradient_increment
+
+        named = dict(self.policy.model.named_parameters())
+        parameters = self.policy.parameters()
+        student_ids = {id(value) for name, value in named.items() if ".student." in name}
+        teacher_ids = {id(value) for name, value in named.items() if ".teacher." in name}
+        self.assertEqual({id(value) for value in parameters}, student_ids)
+        self.assertTrue(student_ids.isdisjoint(teacher_ids))
+        teacher = next(value for name, value in named.items() if ".teacher." in name)
+        teacher.grad = torch.full_like(teacher, 42.0)
+        for parameter in parameters:
+            parameter.grad = None
+        parameter = parameters[0]
+        self.assertEqual(parameter.dtype, torch.float32)
+        parameter.grad = torch.zeros_like(parameter)
+        parameter.grad.view(-1)[0] = 1.0
+        before = capture_gradients(parameters)
+        self.assertEqual(len(before), len(parameters))
+        self.assertEqual(sum(value is not None for value in before), 1)
+        parameter.grad.view(-1)[0].add_(1e-30)
+        rounded = gradient_increment(parameters, before)
+        self.assertEqual(rounded["actual_accumulated_packet_delta_norm"], 0.0)
+        self.assertEqual(rounded["packet_gradient_norm"], 0.0)
+        self.assertEqual(rounded["gradient_before_packet_norm"], 1.0)
+        self.assertEqual(rounded["packet_gradient_ratio"], 0.0)
+
+        parameter.grad.view(-1)[0].add_(0.125)
+        retained = gradient_increment(parameters, before)
+        self.assertEqual(retained["actual_accumulated_packet_delta_norm"], 0.125)
+        self.assertEqual(retained["packet_gradient_norm"], 0.125)
+        self.assertEqual(retained["gradient_before_packet_norm"], 1.0)
+        self.assertEqual(retained["packet_gradient_ratio"], 0.125)
+
+        parameter.grad = None
+        before = capture_gradients(parameters)
+        self.assertTrue(all(value is None for value in before))
+        parameter.grad = torch.zeros_like(parameter)
+        parameter.grad.view(-1)[0] = 1e-30
+        fresh = gradient_increment(parameters, before)
+        self.assertGreater(fresh["actual_accumulated_packet_delta_norm"], 0.0)
+        self.assertAlmostEqual(fresh["actual_accumulated_packet_delta_norm"] / 1e-30, 1.0, places=6)
+        self.assertEqual(fresh["gradient_before_packet_norm"], 0.0)
+        self.assertIsNone(fresh["packet_gradient_ratio"])
+        self.assertTrue(torch.all(teacher.grad == 42.0))
+
+
+if __name__ == "__main__":
+    unittest.main()
