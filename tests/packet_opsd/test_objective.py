@@ -1,6 +1,7 @@
 """Exact finite-space checks; no model, media or numerical packages needed."""
 
 from copy import deepcopy
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -205,9 +206,12 @@ class PacketObjectiveTest(unittest.TestCase):
             index = root / "index"
             index.mkdir()
             heldout, manifest = root / "held.json", root / "tasks.jsonl"
-            heldout.write_text(json.dumps([{
-                "sample_uid": "lvbench:5256", "qid": "5256", "video_id": "same-video",
-            }]))
+            heldout.write_text(json.dumps([
+                {"ordinal": i, "sample_uid": f"lvbench:{qid}", "qid": qid,
+                 "video_id": "same-video" if i == 0 else f"held-video-{i}",
+                 "question_sha256": hashlib.sha256(f"held question {i}".encode()).hexdigest()}
+                for i, qid in enumerate(["5256"] + [f"other-{i}" for i in range(299)])
+            ]))
             task = {"uid": "fresh", "video_id": "same-video", "question": "toy question",
                     "video_path": str(video), "visual_index": str(index)}
             manifest.write_text(json.dumps({**task, "ground_truth": "FORBIDDEN"}) + "\n")

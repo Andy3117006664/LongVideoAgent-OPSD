@@ -25,6 +25,7 @@ from typing import Any, Callable
 
 from .evaluate import (EvaluationTask, _find_trajectory, _prediction, _source_paths,
                        load_evaluation_tasks)
+from .identities import resolve_identity_mapping
 
 
 PLANNER_TOKENS = 4096
@@ -277,6 +278,8 @@ def evaluate_api_tasks(entries: list[EvaluationTask], output: Path, *, settings:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tasks", required=True, type=Path)
+    parser.add_argument("--identity-mapping", type=Path,
+                        help="answer-free fixed300 mapping; defaults to the archived public mapping")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--planner-endpoint", required=True)
     parser.add_argument("--planner-model", required=True)
@@ -291,7 +294,8 @@ def main(argv=None) -> int:
         parser.error("workers and task-timeout must be positive")
     args.tasks, args.output = args.tasks.expanduser().resolve(), args.output.expanduser().resolve()
     repo, source = _source_paths()
-    mapping = repo / "baselines/videoseal_6000d/selection/identity_mapping.json"
+    mapping = resolve_identity_mapping(args.identity_mapping, repo=repo)
+    args.identity_mapping = mapping.path
     entries = load_evaluation_tasks(args.tasks, mapping, smoke_limit=args.smoke_limit)
     args.output.mkdir(parents=True, exist_ok=False)
     from .train import configure_baseline
@@ -305,9 +309,9 @@ def main(argv=None) -> int:
     settings = {key: getattr(args, key) for key in ("planner_endpoint", "planner_model",
                                                    "inspector_endpoint", "compactor_endpoint")}
     config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
+    config.update(mapping.metadata())
     config.update(
         task_manifest_sha256=hashlib.sha256(args.tasks.read_bytes()).hexdigest(),
-        identity_mapping_sha256=hashlib.sha256(mapping.read_bytes()).hexdigest(),
         selected_ordinals=[entry.ordinal for entry in entries],
         fixed300_complete=args.smoke_limit is None, planner_temperature=0.0,
         planner_max_new_tokens=PLANNER_TOKENS, planner_context_limit=40960,

@@ -1,6 +1,10 @@
 """Optional tiny Qwen3/LoRA checks. No downloaded weights or tokenizer."""
 
 import importlib.util
+import hashlib
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -29,6 +33,10 @@ class TinyTokenizer:
     def decode(self, token_ids, *, skip_special_tokens=True):
         return " ".join(str(value) for value in token_ids if value not in (0, 2))
 
+    def save_pretrained(self, path):
+        Path(path).mkdir(parents=True)
+        (Path(path) / "tokenizer_config.json").write_text('{"synthetic": true}\n')
+
 
 @unittest.skipUnless(AVAILABLE, "torch/transformers/peft are not installed")
 class PolicyTest(unittest.TestCase):
@@ -50,6 +58,25 @@ class PolicyTest(unittest.TestCase):
         self.policy = HFPolicy(model, TinyTokenizer(), max_context=128)
         self.policy.update_teacher(0.0)
         self.messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"}]
+
+    def test_checkpoint_preserves_the_bound_identity_path_and_hash(self):
+        from methods.packet_opsd.identities import resolve_identity_mapping
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            mapping = root / "new-mapping.json"
+            mapping.write_text(json.dumps([
+                {"ordinal": i, "qid": str(i), "video_id": f"video-{i}",
+                 "question_sha256": hashlib.sha256(f"question {i}".encode()).hexdigest()}
+                for i in range(300)
+            ]))
+            bound = resolve_identity_mapping(mapping)
+            config = dict(bound.metadata(), training_split_policy="video-disjoint")
+            optimizer = torch.optim.AdamW(self.policy.parameters(), lr=1e-5)
+            self.policy.save(root / "checkpoint", optimizer=optimizer, step=0, config=config)
+            saved = torch.load(root / "checkpoint/training_state.pt", map_location="cpu", weights_only=False)
+            self.assertEqual(saved["config"], config)
+            self.assertEqual(saved["config"]["identity_mapping"], str(mapping.resolve()))
+            self.assertEqual(saved["config"]["identity_mapping_sha256"], hashlib.sha256(mapping.read_bytes()).hexdigest())
 
     def test_sequence_log_probability_matches_full_logits_and_generation(self):
         temperature = 0.7

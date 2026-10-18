@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .objective import (INSPECTION_PREFIX, candidate_spans, hindsight_messages,
                         symmetric_packet_coefficients)
+from .identities import IdentityMapping, bound_mapping, resolve_identity_mapping
 
 
 def configure_baseline(source: Path, *, inspector_endpoint: str, compactor_endpoint: str):
@@ -68,11 +69,9 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load_tasks(path: Path, heldout: Path, *, allow_shared_videos: bool = False) -> list[dict]:
+def load_tasks(path: Path, heldout: Path | IdentityMapping, *, allow_shared_videos: bool = False) -> list[dict]:
     """Read an answer-free task manifest, rejecting gold fields and overlap."""
-    held = json.loads(heldout.read_text())
-    if isinstance(held, dict):
-        held = held.get("records", held.get("rows", held.get("mapping", [])))
+    held = bound_mapping(heldout).rows
     held_uids = {str(r[key]) for r in held for key in ("sample_uid", "qid") if r.get(key)}
     held_questions = {r["question_sha256"] for r in held if r.get("question_sha256")}
     held_videos = {str(r[key]) for r in held for key in ("original_video_id", "video_id") if r.get(key)}
@@ -189,6 +188,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True)
     parser.add_argument("--tasks", type=Path, required=True)
+    parser.add_argument("--identity-mapping", type=Path,
+                        help="answer-free fixed300 mapping; defaults to the archived public mapping")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--inspector-endpoint", required=True)
     parser.add_argument("--compactor-endpoint", required=True)
@@ -223,16 +224,19 @@ def main(argv=None):
             or args.save_every < 1):
         parser.error("invalid training configuration")
     repo = Path(__file__).resolve().parents[2]
+    mapping = resolve_identity_mapping(args.identity_mapping, repo=repo)
+    args.identity_mapping = mapping.path
     source = repo / "baselines/videoseal_6000d/source"
     import sys
     sys.path[:0] = [str(source / "baselines/VideoSEAL"), str(source)]
-    tasks = load_tasks(args.tasks, repo / "baselines/videoseal_6000d/selection/identity_mapping.json",
+    tasks = load_tasks(args.tasks, mapping,
                        allow_shared_videos=(args.allow_shared_videos_canary
                                             or args.training_split_policy == "question-disjoint"))
     args.output.mkdir(parents=True, exist_ok=False)
     baseline_env = configure_baseline(source, inspector_endpoint=args.inspector_endpoint,
                                        compactor_endpoint=args.compactor_endpoint)
     config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
+    config.update(mapping.metadata())
     config.update({"task_manifest_sha256": sha(args.tasks), "baseline_commit": "7676bac4fa06a3100e73cc728f53b6582cb97006",
                    "sampler_contract": "planned-frame-packet-approximation-with-factual-parity",
                    "training_gold_used": False, "candidate_tool_calls": 0,

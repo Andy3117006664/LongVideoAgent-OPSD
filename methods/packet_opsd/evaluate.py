@@ -17,6 +17,8 @@ import sys
 import time
 from typing import Any, Callable
 
+from .identities import IdentityMapping, bound_mapping, resolve_identity_mapping
+
 
 TASK_FIELDS = {
     "uid", "video_id", "question", "video_path", "visual_index", "subtitle_path",
@@ -42,7 +44,7 @@ def _source_paths() -> tuple[Path, Path]:
 
 
 def load_evaluation_tasks(
-    path: Path, mapping_path: Path, *, smoke_limit: int | None = None,
+    path: Path, mapping_path: Path | IdentityMapping, *, smoke_limit: int | None = None,
 ) -> list[EvaluationTask]:
     """Validate public identities and question hashes without any gold input.
 
@@ -51,9 +53,7 @@ def load_evaluation_tasks(
     parquet's qa_uid and conditional Observer. Video aliases are similarly
     normalized to mapping.video_id; arbitrary alternative videos are rejected.
     """
-    mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
-    if not isinstance(mapping, list) or len(mapping) != 300:
-        raise ValueError("The published identity mapping must contain exactly 300 records")
+    mapping = bound_mapping(mapping_path).rows
     by_uid: dict[str, dict] = {}
     ordinals, canonical_uids = set(), set()
     for row in mapping:
@@ -235,6 +235,8 @@ def main(argv=None) -> int:
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--adapter", required=True, type=Path)
     parser.add_argument("--tasks", required=True, type=Path)
+    parser.add_argument("--identity-mapping", type=Path,
+                        help="answer-free fixed300 mapping; defaults to the archived public mapping")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--inspector-endpoint", required=True)
     parser.add_argument("--compactor-endpoint", required=True)
@@ -249,17 +251,18 @@ def main(argv=None) -> int:
     for key in ("model", "adapter", "tasks", "output"):
         setattr(args, key, getattr(args, key).expanduser().resolve())
     repo, source = _source_paths()
-    mapping_path = repo / "baselines" / "videoseal_6000d" / "selection" / "identity_mapping.json"
-    entries = load_evaluation_tasks(args.tasks, mapping_path, smoke_limit=args.smoke_limit)
+    mapping = resolve_identity_mapping(args.identity_mapping, repo=repo)
+    args.identity_mapping = mapping.path
+    entries = load_evaluation_tasks(args.tasks, mapping, smoke_limit=args.smoke_limit)
     args.output.mkdir(parents=True, exist_ok=False)
     from .train import configure_baseline
     baseline_environment = configure_baseline(
         source, inspector_endpoint=args.inspector_endpoint, compactor_endpoint=args.compactor_endpoint,
     )
     config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
+    config.update(mapping.metadata())
     config.update({
         "task_manifest_sha256": hashlib.sha256(args.tasks.read_bytes()).hexdigest(),
-        "identity_mapping_sha256": hashlib.sha256(mapping_path.read_bytes()).hexdigest(),
         "selected_ordinals": [entry.ordinal for entry in entries],
         "fixed300_complete": args.smoke_limit is None,
         "planner_temperature": 0.0, "planner_max_new_tokens": 4096,

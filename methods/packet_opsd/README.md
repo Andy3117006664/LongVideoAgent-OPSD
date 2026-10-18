@@ -167,6 +167,19 @@ new questions on potentially seen videos. Record this choice and the manifests
 before evaluation. The legacy `--allow-shared-videos-canary` is mutually
 exclusive with this policy option.
 
+Training, native API evaluation, and HF evaluation accept an optional
+`--identity-mapping /path/to/identity_mapping.json`. Omitting it keeps the
+archived public fixed300 mapping. A new split must pass the same explicit
+mapping to every arm and to the terminal comparison. The mapping contains
+exactly 300 answer-free rows with ordinal, qid, video_id and question_sha256;
+sample_uid and original_video_id may declare aliases. Unknown fields, invalid
+hashes and ambiguous identities are rejected before output creation or model
+loading. The selected absolute path and SHA256 of the bytes actually used by
+the guards are saved as `identity_mapping` and `identity_mapping_sha256` in
+each run config, including the training checkpoint's `training_state.pt`
+config. A replacement mapping retains UID, question and video overlap checks;
+use `video-disjoint` for a split that holds out entire test videos.
+
 `metrics.jsonl` records fresh attempts, factual-parity rejection, three candidate
 validities/frame counts, kernel coefficients, score probabilities, gradient norm,
 and EMA updates. Update-level diagnostics record the raw weighted auxiliary
