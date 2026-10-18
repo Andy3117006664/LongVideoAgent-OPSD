@@ -139,6 +139,18 @@ context overflow is recorded and skipped. Evaluation remains greedy with the
 baseline budget; stochastic training is an explicit change, not a claim that
 baseline inference used .7.
 
+`--collect-training-prefix` stops collection before the next Planner generation
+once the requested number of natural, complete, successful inspections passes
+the same timestamp/count/pixel parity gate used for training. It retains the
+complete pre-action history and natural feedback; no candidate result controls
+this stopping time. Inspector answers may still terminate naturally first.
+The saved trajectory explicitly marks incomplete QA and is not an evaluation
+prediction. This avoids unused future calls when only the first record is
+trained. Unlike complete-rollout collection it retains a valid prefix even if
+the unexecuted future would have failed. At the final allowed step the original
+fallback can still execute because there is no next Planner hook. Default
+collection and every evaluation path retain the complete original loop.
+
 Candidate stopping preserves the complete configured EOS set and the original
 tool delimiter. `stop_reason` distinguishes tool ending, EOS, and hard token
 cap; an EOS without a valid tool call is still an invalid packet. Longer

@@ -15,10 +15,11 @@ from __future__ import annotations
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, dataclass, is_dataclass
+import json
 import os
 from pathlib import Path
 import sys
-from typing import Any, Iterator, Protocol
+from typing import Any, Callable, Iterator, Protocol
 
 
 class Policy(Protocol):
@@ -44,6 +45,13 @@ class RolloutResult:
     result: dict[str, Any]
 
 
+class _TrainingPrefixReady(BaseException):
+    """Private control flow, caught only immediately outside the agent loop."""
+
+    def __init__(self, eligible_records: int):
+        self.eligible_records = eligible_records
+
+
 class PlannerShim:
     """The original legacy ``generate_text`` interface backed by HFPolicy.
 
@@ -56,6 +64,7 @@ class PlannerShim:
         self.policy = policy
         self.calls: list[dict[str, Any]] = []
         self._last_usage: dict[str, int] | None = None
+        self.before_generate: Callable[[], None] | None = None
 
     def generate_text(
         self,
@@ -66,6 +75,8 @@ class PlannerShim:
         system_message: str = "",
         **kwargs: Any,
     ) -> Any:
+        if self.before_generate is not None:
+            self.before_generate()
         if response_json:
             raise ValueError("The captured Planner uses the original text tool-call format.")
         messages = []
@@ -192,6 +203,8 @@ def run_task(
     max_steps: int = 16,
     temperature: float = 0.7,
     max_new_tokens: int = 4096,
+    max_factual_records: int | None = None,
+    record_filter: Callable[[dict[str, Any]], bool] | None = None,
 ) -> RolloutResult:
     """Run one answer-free task with the current student Planner.
 
@@ -201,12 +214,23 @@ def run_task(
     ``step_index`` is zero-based into ``trajectory['steps']``. Context overflow
     and policy errors propagate; this adapter never truncates the history.
     Completion.complete is retained for the trainer to reject truncated draws.
+
+    The opt-in training prefix stops before the next Planner generation after
+    enough records pass the caller's pure eligibility filter. The original
+    Inspector may still return naturally first. This preserves each collected
+    H/F prefix, but removes the old requirement that the *future* trajectory
+    finish successfully: a later context/tool failure no longer discards that
+    prefix. Evaluation and callers omitting the option keep the complete loop.
+    At the final allowed step there is no next generation hook, so the original
+    forced fallback still executes. No candidate outcome participates here.
     """
     for key in ("question", "video_id", "uid", "video_path"):
         if not str(task.get(key) or "").strip():
             raise ValueError(f"Task requires nonempty {key!r}")
     if max_steps < 1 or max_new_tokens < 1 or temperature < 0:
         raise ValueError("max_steps/max_new_tokens must be positive and temperature nonnegative")
+    if max_factual_records is not None and max_factual_records < 1:
+        raise ValueError("max_factual_records must be positive when supplied")
     agent_class, build_tool_map = _load_videoseal()
     shim = PlannerShim(policy)
     with _task_environment(task, temperature=temperature, max_new_tokens=max_new_tokens):
@@ -219,20 +243,55 @@ def run_task(
             raise RuntimeError("The captured baseline must expose both original visual tools")
         agent = agent_class(tools=tools, llm_backend="api")
         agent.llm = shim
-        result = agent.run(
-            question=str(task["question"]),
-            uid=str(task["uid"]),
-            video_id=str(task["video_id"]),
-            video_path=str(task["video_path"]),
-            visual_index=task.get("visual_index") or None,
-            groundtruth=None,
-            max_steps=int(max_steps),
-            save_dir=str(save_dir),
-        )
-        trajectory = asdict(agent.traj) if is_dataclass(agent.traj) else deepcopy(agent.traj)
+        if max_factual_records is not None:
+            def before_generate() -> None:
+                records = _factual_records(_trajectory_dict(agent.traj), shim.calls)
+                eligible = sum(record_filter(record) if record_filter else True for record in records)
+                if eligible >= max_factual_records:
+                    raise _TrainingPrefixReady(eligible)
+            shim.before_generate = before_generate
+        prefix_stop = None
+        try:
+            result = agent.run(
+                question=str(task["question"]),
+                uid=str(task["uid"]),
+                video_id=str(task["video_id"]),
+                video_path=str(task["video_path"]),
+                visual_index=task.get("visual_index") or None,
+                groundtruth=None,
+                max_steps=int(max_steps),
+                save_dir=str(save_dir),
+            )
+        except _TrainingPrefixReady as stopped:
+            # Catch only our sentinel. Model/tool failures, cancellation and
+            # unrelated BaseExceptions continue to propagate normally.
+            agent.traj.answer = None
+            agent.traj.note = "training prefix stopped before the next Planner generation; QA incomplete"
+            agent._save_trajectory(str(save_dir))
+            prefix_stop = {"partial": True, "eligible_records": stopped.eligible_records,
+                           "max_factual_records": max_factual_records,
+                           "reason": "training prefix ready before next Planner generation"}
+            result = {"answer": None, "steps": len(agent.traj.steps), "run_id": agent.traj.run_id,
+                      "note": agent.traj.note, "training_prefix_stop": prefix_stop}
+        trajectory = _trajectory_dict(agent.traj)
+        if prefix_stop is not None:
+            # The extra marker is outside the original dataclass and does not
+            # enter records' messages or observations / hindsight teacher H/F.
+            trajectory["training_prefix_stop"] = prefix_stop
+            path = Path(save_dir) / str(trajectory["run_id"]) / "trajectory.json"
+            path.write_text(json.dumps(trajectory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return RolloutResult(_factual_records(trajectory, shim.calls), trajectory, dict(result))
+
+
+def _trajectory_dict(trajectory: Any) -> dict[str, Any]:
+    trajectory = asdict(trajectory) if is_dataclass(trajectory) else deepcopy(trajectory)
     if not isinstance(trajectory, dict):
         raise RuntimeError("The original agent did not return an audit trajectory")
+    return trajectory
 
+
+def _factual_records(trajectory: dict[str, Any], calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One alignment contract for complete and training-prefix trajectories."""
     records: list[dict[str, Any]] = []
     call_index = 0
     for step_index, step in enumerate(trajectory.get("steps", [])):
@@ -240,9 +299,9 @@ def run_task(
         action = step.get("action")
         if isinstance(observation, dict) and observation.get("forced"):
             continue
-        if call_index >= len(shim.calls):
+        if call_index >= len(calls):
             raise RuntimeError("Original trajectory has a step without a Planner completion")
-        call = shim.calls[call_index]
+        call = calls[call_index]
         call_index += 1
         if step.get("model_response") != call["completion"].text:
             raise RuntimeError("Planner completion/trajectory alignment changed")
@@ -261,6 +320,6 @@ def run_task(
                 "observation": deepcopy(observation),
                 "step_index": step_index,
             })
-    if call_index != len(shim.calls):
+    if call_index != len(calls):
         raise RuntimeError("Planner completion has no matching original trajectory step")
-    return RolloutResult(records, trajectory, dict(result))
+    return records

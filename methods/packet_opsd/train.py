@@ -136,6 +136,26 @@ def append(path: Path, row: dict):
         handle.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n")
 
 
+def factual_record_skip_reason(record: dict, media, sampler) -> str | None:
+    """Pure, shared eligibility gate for prefix collection and training.
+
+    Never write metrics or inspect candidate draws here: the prefix hook may
+    check the same already-observed record before several Planner turns.
+    """
+    from .packets import build_action_packet, validate_factual_packet
+    completion, observation = record["completion"], record["observation"]
+    if (not completion.token_ids or not completion.complete
+            or not observation.get("ok")):
+        return "ineligible_factual_inspection"
+    predicted = build_action_packet(media, record["action"]["arguments"].get("spans"), sampler)
+    metadata = observation.get("metadata") or {}
+    parity = validate_factual_packet(predicted, metadata.get("timestamps") or [])
+    predicted_pixels = sum(f.final_width * f.final_height for f in predicted.frames)
+    if not parity.accepted or metadata.get("actual_pixels") != predicted_pixels:
+        return "packet_parity"
+    return None
+
+
 def capture_gradients(parameters):
     return [None if p.grad is None else p.grad.detach().clone() for p in parameters]
 
@@ -189,6 +209,8 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=20261018)
     parser.add_argument("--save-every", type=int, default=10)
     parser.add_argument("--audit-candidate-probabilities", action="store_true")
+    parser.add_argument("--collect-training-prefix", action="store_true",
+                        help="stop training after enough eligible inspections, before the next Planner turn")
     overlap = parser.add_mutually_exclusive_group()
     overlap.add_argument("--allow-shared-videos-canary", action="store_true")
     overlap.add_argument("--training-split-policy", choices=("video-disjoint", "question-disjoint"),
@@ -216,6 +238,8 @@ def main(argv=None):
                    "training_gold_used": False, "candidate_tool_calls": 0,
                    "candidate_draws_per_record": {"student": 2, "teacher": 1},
                    "packet_estimator": "symmetric-score-function",
+                   "rollout_collection": ("first-eligible-training-prefix" if args.collect_training_prefix
+                                          else "complete-original-trajectory"),
                    "gradient_combination": "token-KL plus relative-norm-capped packet auxiliary",
                    "generalization_scope": ("new questions on potentially seen videos"
                                             if args.training_split_policy == "question-disjoint"
@@ -224,7 +248,7 @@ def main(argv=None):
                    "baseline_environment": baseline_env})
     (args.output / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     import torch
-    from .packets import SamplerSpec, build_action_packet, gaussian_packet_kernel, validate_factual_packet
+    from .packets import SamplerSpec, build_action_packet, gaussian_packet_kernel
     from .policy import ContextOverflow, HFPolicy
     from .gradients import bounded_packet_gradients
     from .rollout import run_task
@@ -247,20 +271,17 @@ def main(argv=None):
                 media = media_spec(task)
                 rollout = run_task(task, policy, save_dir=args.output / "trajectories" / f"attempt-{attempts}",
                                    max_steps=args.max_steps, temperature=args.temperature,
-                                   max_new_tokens=args.rollout_tokens)
+                                   max_new_tokens=args.rollout_tokens,
+                                   max_factual_records=(args.records_per_step if args.collect_training_prefix else None),
+                                   record_filter=(lambda record: factual_record_skip_reason(record, media, sampler) is None)
+                                   if args.collect_training_prefix else None)
                 records = []
                 for record in rollout.factual_records:
-                    completion = record["completion"]
-                    if not completion.token_ids or not completion.complete or not record["observation"].get("ok"):
-                        continue
-                    predicted = build_action_packet(media, record["action"]["arguments"].get("spans"), sampler)
-                    actual_ts = record["observation"].get("metadata", {}).get("timestamps")
-                    parity = validate_factual_packet(predicted, actual_ts or [])
-                    actual_pixels = record["observation"].get("metadata", {}).get("actual_pixels")
-                    predicted_pixels = sum(f.final_width * f.final_height for f in predicted.frames)
-                    if not parity.accepted or actual_pixels != predicted_pixels:
-                        append(args.output / "metrics.jsonl", {"event": "skip_packet_parity", "attempt": attempts,
-                                                               "uid_hash": uid_hash})
+                    reason = factual_record_skip_reason(record, media, sampler)
+                    if reason is not None:
+                        if reason == "packet_parity":
+                            append(args.output / "metrics.jsonl", {"event": "skip_packet_parity", "attempt": attempts,
+                                                                   "uid_hash": uid_hash})
                         continue
                     records.append(record)
                     if len(records) >= args.records_per_step:
