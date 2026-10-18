@@ -20,6 +20,9 @@ class Completion:
     token_ids: list[int]
     prompt_ids: list[int]
     complete: bool
+    stop_reason: str | None = None
+    stop_token_id: int | None = None
+    generation_log_probability: float | None = None
 
 
 class ContextOverflow(ValueError):
@@ -31,6 +34,7 @@ class HFPolicy:
         self.model, self.tokenizer = model, tokenizer
         self.max_context = int(max_context)
         self.device = model.get_input_embeddings().weight.device
+        self.audit_generation_scores = False
         self.select("student")
 
     @classmethod
@@ -103,6 +107,31 @@ class HFPolicy:
                                                   add_generation_prompt=True)
         return self.tokenizer.encode(text + prefix, add_special_tokens=False)
 
+    def _eos_token_ids(self) -> tuple[int, ...]:
+        """Preserve every configured EOS, including a distinct end-of-text ID.
+
+        Replacing Qwen's generation-config list with only tokenizer.eos_token_id
+        can turn a legitimate terminal token into a long repeated suffix. The
+        teacher and student share this same stopping-time contract.
+        """
+        configured = getattr(getattr(self.model, "generation_config", None), "eos_token_id", None)
+        if configured is None:
+            configured = getattr(self.model.config, "eos_token_id", None)
+        result = []
+        for value in (configured, self.tokenizer.eos_token_id):
+            values = value if isinstance(value, (list, tuple)) else [value]
+            for token_id in values:
+                if token_id is None:
+                    continue
+                token_id = int(token_id)
+                if token_id < 0:
+                    raise ValueError("EOS token IDs must be nonnegative")
+                if token_id not in result:
+                    result.append(token_id)
+        if not result:
+            raise ValueError("A configured EOS token is required")
+        return tuple(result)
+
     @torch.no_grad()
     def sample(self, messages: list[dict], *, adapter: str = "student",
                prefix: str = "", max_new_tokens: int = 4096,
@@ -113,22 +142,40 @@ class HFPolicy:
         if len(ids) + max_new_tokens > self.max_context:
             raise ContextOverflow(f"prompt {len(ids)} + generation {max_new_tokens} > {self.max_context}")
         inputs = torch.tensor([ids], device=self.device)
+        eos_ids = self._eos_token_ids()
+        from transformers import GenerationConfig
+        # Both settings are required: Transformers >=4.50 may otherwise merge
+        # checkpoint values back into fields left at GenerationConfig defaults.
+        # Inherited min-p, suppression or forced-token processors would change
+        # the raw temperature-softmax distribution scored below. Keep the
+        # checkpoint's complete EOS set explicitly, as a stopping rule only.
         kwargs: dict[str, Any] = dict(
+            generation_config=GenerationConfig(), use_model_defaults=False,
             max_new_tokens=int(max_new_tokens), do_sample=temperature > 0,
             top_k=0, top_p=1.0, repetition_penalty=1.0, use_cache=True,
             pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
+            eos_token_id=list(eos_ids),
         )
         if temperature > 0:
             kwargs["temperature"] = float(temperature)
+        audit_scores = bool(self.audit_generation_scores)
+        if audit_scores:
+            # Pilot only. Do not retain vocabulary-sized tensors in Completion.
+            kwargs.update(return_dict_in_generate=True, output_scores=True)
         if prefix:
             from transformers import StoppingCriteria, StoppingCriteriaList
             tokenizer = self.tokenizer
             offset = len(ids)
+            marker_ids = tokenizer.encode("</tool_call>", add_special_tokens=False)
 
             class EndToolCall(StoppingCriteria):
                 def __call__(self, input_ids, scores, **_kwargs):
-                    text = tokenizer.decode(input_ids[0, offset:], skip_special_tokens=True)
+                    generated_ids = input_ids[0, offset:].tolist()
+                    if marker_ids and generated_ids[-len(marker_ids):] == marker_ids:
+                        return True
+                    # Preserve delimiter special tokens. Text fallback also
+                    # covers contextual tokenizations of a multi-token marker.
+                    text = tokenizer.decode(generated_ids, skip_special_tokens=False)
                     return "</tool_call>" in text
 
             kwargs["stopping_criteria"] = StoppingCriteriaList([EndToolCall()])
@@ -136,10 +183,35 @@ class HFPolicy:
         with self.adapter(adapter):
             generated = self.model.generate(input_ids=inputs,
                                              attention_mask=torch.ones_like(inputs), **kwargs)
-        tokens = generated[0, len(ids):].tolist()
-        text = self.tokenizer.decode(tokens, skip_special_tokens=True)
-        complete = bool(tokens and tokens[-1] == self.tokenizer.eos_token_id)
-        return Completion(text, tokens, ids, complete or (bool(prefix) and "</tool_call>" in text))
+        sequences = generated.sequences if audit_scores else generated
+        tokens = sequences[0, len(ids):].tolist()
+        generation_log_probability = None
+        if audit_scores:
+            if len(generated.scores) != len(tokens):
+                raise RuntimeError("Generation scores do not align with sampled token IDs")
+            total = torch.zeros((), dtype=torch.float64, device=self.device)
+            for token_id, scores in zip(tokens, generated.scores):
+                total += torch.log_softmax(scores[0].float(), -1)[token_id].double()
+            generation_log_probability = float(total)
+        # Release the optional full-vocabulary score history (and returned KV
+        # cache) before subsequent differentiable scoring or another draw.
+        del generated
+        # Candidate parsing needs its actual tool delimiter. Never trim a
+        # sampled token or hide an earlier EOS to manufacture a valid action.
+        # The original no-prefix Planner text decoding is left unchanged.
+        text = self.tokenizer.decode(tokens, skip_special_tokens=not bool(prefix))
+        has_marker = bool(prefix) and "</tool_call>" in text
+        ended_eos = bool(tokens and tokens[-1] in eos_ids)
+        if has_marker:
+            reason = "tool_end"
+        elif ended_eos:
+            reason = "eos"
+        elif len(tokens) >= max_new_tokens:
+            reason = "token_cap"
+        else:
+            reason = "other"
+        return Completion(text, tokens, ids, has_marker or ended_eos, reason,
+                          tokens[-1] if tokens else None, generation_log_probability)
 
     def hidden_for_response(self, prompt_ids: list[int], tokens: list[int]):
         if not prompt_ids or not tokens or len(prompt_ids) + len(tokens) > self.max_context:

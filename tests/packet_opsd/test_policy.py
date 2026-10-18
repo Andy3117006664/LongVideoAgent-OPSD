@@ -112,6 +112,82 @@ class PolicyTest(unittest.TestCase):
             elif ".student." in name:
                 self.assertTrue(value.requires_grad)
 
+    def test_configured_eos_stopped_sequence_keeps_exact_sampling_log_probability(self):
+        # Making every vocabulary item terminal guarantees a one-token path,
+        # including terminals other than the tokenizer's single EOS ID.
+        eos_ids = list(range(self.policy.model.config.vocab_size))
+        self.policy.model.generation_config.eos_token_id = eos_ids
+        temperature = 0.7
+        torch.manual_seed(22)
+        completion = self.policy.sample(self.messages, prefix="p", max_new_tokens=8,
+                                        temperature=temperature)
+        self.assertEqual(len(completion.token_ids), 1)
+        self.assertTrue(completion.complete)
+        self.assertEqual(completion.stop_reason, "eos")
+        self.assertEqual(completion.stop_token_id, completion.token_ids[-1])
+        actual = self.policy.sequence_log_prob(completion, temperature=temperature)
+        self.policy.model.eval()
+        prompt = torch.tensor([completion.prompt_ids])
+        torch.manual_seed(22)
+        with torch.no_grad():
+            generated = self.policy.model.generate(
+                input_ids=prompt, attention_mask=torch.ones_like(prompt),
+                max_new_tokens=8, do_sample=True, temperature=temperature,
+                top_k=0, top_p=1.0, repetition_penalty=1.0, use_cache=True,
+                pad_token_id=0, eos_token_id=eos_ids,
+                return_dict_in_generate=True, output_scores=True,
+            )
+        self.assertEqual(generated.sequences[0, len(completion.prompt_ids):].tolist(), completion.token_ids)
+        expected = generated.scores[0][0].float().log_softmax(-1)[completion.token_ids[0]]
+        torch.testing.assert_close(actual.detach(), expected, rtol=1e-5, atol=1e-5)
+
+    def test_pilot_generation_audit_returns_only_scalar_and_matches_differentiable_score(self):
+        self.assertFalse(self.policy.audit_generation_scores)
+        unaudited = self.policy.sample(self.messages, max_new_tokens=2, temperature=0.7)
+        self.assertIsNone(unaudited.generation_log_probability)
+        self.policy.audit_generation_scores = True
+        torch.manual_seed(22)
+        completion = self.policy.sample(self.messages, prefix="p", max_new_tokens=6,
+                                        temperature=0.7)
+        self.assertIsInstance(completion.generation_log_probability, float)
+        self.assertTrue(completion.token_ids)
+        self.assertFalse(any(isinstance(value, torch.Tensor) for value in vars(completion).values()))
+        differentiated = self.policy.sequence_log_prob(completion, temperature=0.7)
+        self.assertTrue(differentiated.requires_grad)
+        self.assertAlmostEqual(float(differentiated.detach()), completion.generation_log_probability,
+                               delta=1e-5)
+        differentiated.backward()
+        self.assertTrue(any(parameter.grad is not None for parameter in self.policy.parameters()))
+
+    def test_checkpoint_processors_do_not_change_audited_sampling_distribution(self):
+        # A full EOS set makes every sampled path terminal after one token.
+        # Deliberately poisonous checkpoint processors must be isolated even
+        # when they were not among the explicit generate kwargs.
+        config = self.policy.model.generation_config
+        # This checkpoint-version boundary enables model-default merging in
+        # Transformers 4.57 unless use_model_defaults=False is explicit.
+        config.transformers_version = "4.57.1"
+        config.eos_token_id = list(range(self.policy.model.config.vocab_size))
+        self.policy.audit_generation_scores = True
+        torch.manual_seed(22)
+        clean = self.policy.sample(self.messages, prefix="p", max_new_tokens=6,
+                                   temperature=0.7)
+        config.min_p = 0.95
+        config.typical_p = 0.01
+        config.suppress_tokens = list(range(self.policy.model.config.vocab_size - 1))
+        config.forced_eos_token_id = self.policy.model.config.vocab_size - 1
+        torch.manual_seed(22)
+        poisoned = self.policy.sample(self.messages, prefix="p", max_new_tokens=6,
+                                      temperature=0.7)
+        self.assertEqual(poisoned.token_ids, clean.token_ids)
+        self.assertEqual(len(poisoned.token_ids), 1)
+        self.assertTrue(poisoned.complete)
+        self.assertEqual(poisoned.stop_reason, "eos")
+        self.assertEqual(poisoned.generation_log_probability, clean.generation_log_probability)
+        scored = self.policy.sequence_log_prob(poisoned, temperature=0.7)
+        self.assertAlmostEqual(float(scored.detach()), poisoned.generation_log_probability,
+                               delta=1e-5)
+
     def test_hindsight_kl_has_student_gradient_and_no_teacher_gradient(self):
         completion = Completion("", [7, 11, 13], self.policy.prompt_ids(self.messages), True)
         teacher_messages = self.messages + [{"role": "user", "content": "natural feedback"}]

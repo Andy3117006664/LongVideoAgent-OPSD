@@ -37,6 +37,8 @@ g_packet = stop_gradient(c_a)  * grad_theta log p_theta(a  | H, prefix)
 
 `objective.py` implements these coefficients; `policy.py` scores the exact sampled
 token IDs using the same positive temperature and no top-k/top-p truncation.
+Generation uses an explicit configuration with `use_model_defaults=False` so
+checkpoint-specific processors cannot silently alter this probability law.
 The score is a **sequence sum**, not a token average. The coefficients/surrogate
 can be negative and is not a logged nonnegative MMD estimate. Conditional on
 fixed H/F, this is the MMD score-function gradient. It is not the gradient of
@@ -53,6 +55,20 @@ explicit invalid symbol; they are not rejection-resampled. Turning
 `--packet-weight 0` leaves the same natural rollout, teacher information, and
 hindsight token objective (the current implementation still records the three
 candidate draws for a matched compute comparison).
+
+The optimizer computes factual token-KL gradient `g_K` and the weighted packet
+gradient `g_P` separately. It combines them as
+
+```
+s = min(1, rho * ||g_K|| / ||g_P||)  # s=1 when g_P=0; s=0 when only g_K=0
+g = g_K + stop_gradient(s) * g_P    # rho defaults to .5
+```
+
+The final global norm clip is 1. This preserves the sequence-sum packet score
+and caps its contribution relative to the on-policy token objective. It is an
+adaptive optimization rule: the combined direction is not claimed to remain
+an unbiased gradient of one fixed weighted scalar MMD loss. A zero combined
+gradient skips that attempt without an optimizer or EMA update.
 
 ## What the packet identity does and does not establish
 
@@ -117,21 +133,39 @@ CUDA_VISIBLE_DEVICES=0 /path/to/runtime/python -m methods.packet_opsd.train \
 
 Use a new output directory. Defaults: LoRA rank8 on Q/V projections, alpha16,
 dropout0, AdamW lr1e-5, clip1, EMA .99, training temperature .7,
-packet weight .05, bandwidth1, one eligible inspection per update, 4096 factual
-tokens / 384 tokens per argument candidate. Histories are never truncated;
+packet weight .05, relative gradient cap .5, bandwidth1, one eligible inspection
+per update, 4096 factual tokens / 1024 tokens per argument candidate. Histories are never truncated;
 context overflow is recorded and skipped. Evaluation remains greedy with the
 baseline budget; stochastic training is an explicit change, not a claim that
 baseline inference used .7.
 
+Candidate stopping preserves the complete configured EOS set and the original
+tool delimiter. `stop_reason` distinguishes tool ending, EOS, and hard token
+cap; an EOS without a valid tool call is still an invalid packet. Longer
+generation is not itself proof of fixing repetition. An independent stability
+pilot must inspect validity, caps and real gradient contributions before a
+formal training run. `--audit-candidate-probabilities` compares processed
+generation log probabilities with re-scoring of both student draws, including
+zero-coefficient draws; it is off for factual rollouts and off by default.
+
+The default `--training-split-policy video-disjoint` rejects overlap in both
+questions and videos. Explicit `question-disjoint` still rejects held-out UID
+aliases and exact questions but permits shared videos; such a result measures
+new questions on potentially seen videos. Record this choice and the manifests
+before evaluation. The legacy `--allow-shared-videos-canary` is mutually
+exclusive with this policy option.
+
 `metrics.jsonl` records fresh attempts, factual-parity rejection, three candidate
 validities/frame counts, kernel coefficients, score probabilities, gradient norm,
-and EMA updates. It separately measures the **actual accumulated packet gradient
+and EMA updates. Update-level diagnostics record the raw weighted auxiliary
+norm, cap, scale, effective weight, gradient cosine and **actual accumulated packet gradient
 increment before clipping**, its norm and its ratio to the gradient present
 before the packet terms. A nonzero scalar coefficient alone does not certify
 a contribution that survives floating-point accumulation. The two packet terms
 can also cancel. Private candidate text/completion lengths are retained in
 `candidate_audit.private.jsonl`; never commit it or the trajectories.
-`step-N/` contains student/teacher adapters, tokenizer and
+`step-N/` is saved every `--save-every` updates (default 10) and at the final
+update. It contains student/teacher adapters, tokenizer and
 optimizer/RNG state. There is no automatic resume interface; do not imply that
 loading an adapter alone resumes an optimizer. Private trajectories/questions
 and weights must not be committed to this public repository.
@@ -166,6 +200,23 @@ identical outputs across engines. An accuracy comparison needs an untrained
 control on this same backend, or the trained adapter served through the
 original vLLM contract. The engineering canary does not validate score parity.
 
+For a matched comparison, use `python -m methods.packet_opsd.api_evaluate` for
+both arms. It keeps the original Planner API client and tagged-action format.
+Pass the same `--planner-endpoint`, frozen Inspector/compactor endpoints and
+worker count, changing only `--planner-model` between the vLLM base name and
+the trained student LoRA name. Both use greedy 4096-token Planner generations,
+16 steps and the original tool/fallback rules. Separate task processes enforce
+a 2400-second timeout and retain failed rows in the 300-question denominator.
+An incomplete journal cannot be consumed as the final Observer search input.
+
+After both full searches and the unchanged conditional Observer finish,
+`python -m methods.packet_opsd.compare` checks every identity and original
+adoption rule before reading a separate minimal Gold file. It reports search
+and final accuracy, gained/lost questions, exact McNemar and paired confidence
+intervals at question and video-cluster levels. It neither calls a model nor
+feeds Gold back to training. Select the final checkpoint and freeze protocol
+before either evaluation arm; do not use this scorer to tune on fixed300.
+
 ## Validation and comparisons
 
 ```
@@ -179,7 +230,7 @@ the MMD gradient by exact enumeration and finite differences, and exercise the
 actual original agent loop including terminal commit / forced exclusion. Tiny
 random Qwen3/LoRA tests (no downloads) verify scoring against full logits and
 generation probabilities, student-only gradients/updates, and the EMA. These
-five model tests skip when Torch/Transformers/PEFT are unavailable; run them in
+model-dependent tests skip when Torch/Transformers/PEFT are unavailable; run them in
 the actual training environment before a GPU job.
 
 This implements a testable execution-aware OPSD prototype. Its mathematical
@@ -188,7 +239,7 @@ the relevance of shared-budget coupling, and any accuracy/cost benefit still
 require matched experiments. The token objective, teacher information, tool
 budget, and extra LM sampling should be held fixed across those comparisons.
 
-## Recorded engineering canary (2026-10-18)
+## Earlier engineering canary (2026-10-18, before stability fixes)
 
 [VALIDATION.json](VALIDATION.json) records all 45 tests passing with no skips in
 the original runtime, and two real GPU optimizer/EMA updates on two questions

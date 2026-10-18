@@ -178,26 +178,35 @@ def main(argv=None):
     parser.add_argument("--max-steps", type=int, default=16)
     parser.add_argument("--max-context", type=int, default=40960)
     parser.add_argument("--rollout-tokens", type=int, default=4096)
-    parser.add_argument("--candidate-tokens", type=int, default=384)
+    parser.add_argument("--candidate-tokens", type=int, default=1024)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--packet-weight", type=float, default=0.05)
+    parser.add_argument("--packet-gradient-max-ratio", type=float, default=0.5)
     parser.add_argument("--bandwidth", type=float, default=1.0)
     parser.add_argument("--learning-rate", type=float, default=1e-5)
     parser.add_argument("--ema-decay", type=float, default=0.99)
     parser.add_argument("--rank", type=int, default=8)
     parser.add_argument("--seed", type=int, default=20261018)
-    parser.add_argument("--allow-shared-videos-canary", action="store_true")
+    parser.add_argument("--save-every", type=int, default=10)
+    parser.add_argument("--audit-candidate-probabilities", action="store_true")
+    overlap = parser.add_mutually_exclusive_group()
+    overlap.add_argument("--allow-shared-videos-canary", action="store_true")
+    overlap.add_argument("--training-split-policy", choices=("video-disjoint", "question-disjoint"),
+                         default="video-disjoint")
     args = parser.parse_args(argv)
     if (min(args.steps, args.max_attempts, args.records_per_step, args.candidate_tokens) < 1
             or args.temperature <= 0 or args.packet_weight < 0 or args.learning_rate <= 0
-            or args.bandwidth <= 0 or not 0 <= args.ema_decay < 1):
+            or args.bandwidth <= 0 or not 0 <= args.ema_decay < 1
+            or not math.isfinite(args.packet_gradient_max_ratio) or args.packet_gradient_max_ratio < 0
+            or args.save_every < 1):
         parser.error("invalid training configuration")
     repo = Path(__file__).resolve().parents[2]
     source = repo / "baselines/videoseal_6000d/source"
     import sys
     sys.path[:0] = [str(source / "baselines/VideoSEAL"), str(source)]
     tasks = load_tasks(args.tasks, repo / "baselines/videoseal_6000d/selection/identity_mapping.json",
-                       allow_shared_videos=args.allow_shared_videos_canary)
+                       allow_shared_videos=(args.allow_shared_videos_canary
+                                            or args.training_split_policy == "question-disjoint"))
     args.output.mkdir(parents=True, exist_ok=False)
     baseline_env = configure_baseline(source, inspector_endpoint=args.inspector_endpoint,
                                        compactor_endpoint=args.compactor_endpoint)
@@ -207,16 +216,23 @@ def main(argv=None):
                    "training_gold_used": False, "candidate_tool_calls": 0,
                    "candidate_draws_per_record": {"student": 2, "teacher": 1},
                    "packet_estimator": "symmetric-score-function",
+                   "gradient_combination": "token-KL plus relative-norm-capped packet auxiliary",
+                   "generalization_scope": ("new questions on potentially seen videos"
+                                            if args.training_split_policy == "question-disjoint"
+                                            or args.allow_shared_videos_canary
+                                            else "held-out questions and videos"),
                    "baseline_environment": baseline_env})
     (args.output / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     import torch
     from .packets import SamplerSpec, build_action_packet, gaussian_packet_kernel, validate_factual_packet
     from .policy import ContextOverflow, HFPolicy
+    from .gradients import bounded_packet_gradients
     from .rollout import run_task
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
     policy = HFPolicy.load(args.model, rank=args.rank, max_context=args.max_context)
+    policy.audit_generation_scores = False
     optimizer = torch.optim.AdamW(policy.parameters(), lr=args.learning_rate, weight_decay=0.0)
     sampler = SamplerSpec()
     updates, attempts, total_records, nonzero_packet, packet_gradient_updates = 0, 0, 0, 0, 0
@@ -258,16 +274,22 @@ def main(argv=None):
                 groups = []
                 for record in records:
                     teacher_messages = hindsight_messages(record["messages"], record["observation"])
-                    a = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
-                                      max_new_tokens=args.candidate_tokens, temperature=args.temperature)
-                    ap = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
-                                       max_new_tokens=args.candidate_tokens, temperature=args.temperature)
-                    b = policy.sample(teacher_messages, adapter="teacher", prefix=INSPECTION_PREFIX,
-                                      max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                    policy.audit_generation_scores = args.audit_candidate_probabilities
+                    try:
+                        a = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
+                                          max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                        ap = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
+                                           max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                        b = policy.sample(teacher_messages, adapter="teacher", prefix=INSPECTION_PREFIX,
+                                          max_new_tokens=args.candidate_tokens, temperature=args.temperature)
+                    finally:
+                        policy.audit_generation_scores = False
                     append(args.output / "candidate_audit.private.jsonl", {
                         "attempt": attempts, "uid_hash": uid_hash, "step_index": record["step_index"],
                         "completions": [{"role": role, "text": c.text, "complete": c.complete,
-                                         "token_count": len(c.token_ids)}
+                                         "token_count": len(c.token_ids),
+                                         "stop_reason": getattr(c, "stop_reason", None),
+                                         "generation_log_probability": getattr(c, "generation_log_probability", None)}
                                         for role, c in zip(("student", "independent_student", "teacher"), (a, ap, b))]})
                     packets = [build_action_packet(media, candidate_spans(c), sampler) for c in (a, ap, b)]
                     coefficients = symmetric_packet_coefficients(*packets, kernel=lambda x, y: gaussian_packet_kernel(x, y, bandwidth=args.bandwidth))
@@ -278,47 +300,74 @@ def main(argv=None):
                     kl = policy.hindsight_kl(record["completion"], teacher_messages, temperature=args.temperature)
                     kl_value = float(kl.detach())
                     (kl / len(groups)).backward()
-                    before_packet = capture_gradients(policy.parameters())
+                    values.append({"reverse_kl": kl_value})
+                # Compute the two objectives separately. Never infer the packet
+                # gradient from a difference against a much larger accumulated
+                # gradient, and do not change sequence scores to token means.
+                before_packet = capture_gradients(policy.parameters())
+                optimizer.zero_grad(set_to_none=True)
+                for value_record, (record, teacher_messages, candidates, packets, coefficients) in zip(values, groups):
                     score_values = []
+                    score_differences = []
+                    applied_terms = []
                     for candidate, value in zip(candidates, (coefficients.first_value, coefficients.second_value)):
-                        if args.packet_weight and value != 0:
-                            score = policy.sequence_log_prob(candidate, temperature=args.temperature)
+                        applied = bool(args.packet_weight and value != 0)
+                        applied_terms.append(applied)
+                        if applied or args.audit_candidate_probabilities:
+                            with torch.set_grad_enabled(applied):
+                                score = policy.sequence_log_prob(candidate, temperature=args.temperature)
                             score_values.append(float(score.detach()))
-                            (args.packet_weight * value * score / len(groups)).backward()
+                            sampled_score = getattr(candidate, "generation_log_probability", None)
+                            score_differences.append(None if sampled_score is None else float(score.detach()) - sampled_score)
+                            if applied:
+                                (args.packet_weight * value * score / len(groups)).backward()
                         else:
                             score_values.append(None)
-                    increment = gradient_increment(policy.parameters(), before_packet)
-                    del before_packet
-                    values.append({"reverse_kl": kl_value,
-                                   "packet_coefficients": [coefficients.first_value, coefficients.second_value],
+                            score_differences.append(None)
+                    value_record.update({"packet_coefficients": [coefficients.first_value, coefficients.second_value],
                                    "student_kernel": coefficients.student_similarity,
                                    "teacher_kernels": [coefficients.first_teacher_similarity, coefficients.second_teacher_similarity],
-                                   "score_log_probabilities": score_values, **increment,
+                                   "score_log_probabilities": score_values,
+                                   "packet_score_terms_applied": applied_terms,
+                                   "generation_log_probabilities": [getattr(c, "generation_log_probability", None) for c in candidates],
+                                   "scoring_minus_generation_log_probabilities": score_differences,
                                    "candidate_complete": [c.complete for c in candidates],
+                                   "candidate_stop_reasons": [getattr(c, "stop_reason", None) for c in candidates],
                                    "candidate_token_counts": [len(c.token_ids) for c in candidates],
                                    "candidate_valid": [p.valid for p in packets],
                                    "candidate_frame_counts": [len(p.frames) for p in packets]})
+                increment = bounded_packet_gradients(policy.parameters(), before_packet,
+                                                     max_ratio=args.packet_gradient_max_ratio)
+                del before_packet
+                increment["effective_packet_weight"] = args.packet_weight * increment["packet_gradient_scale"]
                 norm = torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0, error_if_nonfinite=True)
-                if not math.isfinite(float(norm)) or float(norm) == 0:
+                if not math.isfinite(float(norm)):
                     raise RuntimeError("no finite nonzero student gradient")
+                if float(norm) == 0:
+                    append(args.output / "metrics.jsonl", {"event": "skip_zero_gradient", "attempt": attempts,
+                                                           "uid_hash": uid_hash, "records": values, **increment})
+                    continue
                 optimizer.step()
                 policy.update_teacher(args.ema_decay)
                 updates += 1
                 total_records += len(groups)
-                nonzero_packet += sum(any(score is not None for score in v["score_log_probabilities"]) for v in values)
-                packet_gradient_updates += sum(v["packet_gradient_norm"] > 0 for v in values)
+                nonzero_packet += sum(any(v["packet_score_terms_applied"]) for v in values)
+                packet_gradient_updates += int(increment["packet_gradient_norm"] > 0)
                 row = {"event": "update", "step": updates, "attempt": attempts, "uid_hash": uid_hash,
                        "gradient_norm": float(norm), "records": values,
-                       "candidate_tool_calls": 0, "ema_updated": True}
+                       "candidate_tool_calls": 0, "ema_updated": True, **increment}
                 append(args.output / "metrics.jsonl", row)
                 print(json.dumps(row, allow_nan=False), flush=True)
+                if updates % args.save_every == 0:
+                    policy.save(args.output / f"step-{updates}", optimizer=optimizer, step=updates, config=config)
             except ContextOverflow as exc:
                 optimizer.zero_grad(set_to_none=True)
                 append(args.output / "metrics.jsonl", {"event": "skip_context_overflow", "attempt": attempts,
                                                        "uid_hash": uid_hash, "reason": str(exc)})
         if updates != args.steps:
             raise RuntimeError(f"only {updates}/{args.steps} updates in {attempts} on-policy attempts")
-        policy.save(args.output / f"step-{updates}", optimizer=optimizer, step=updates, config=config)
+        if updates % args.save_every:
+            policy.save(args.output / f"step-{updates}", optimizer=optimizer, step=updates, config=config)
         result = {"state": "COMPLETED", "updates": updates, "attempts": attempts,
                   "eligible_records": total_records, "nonzero_packet_updates": nonzero_packet,
                   "packet_gradient_updates": packet_gradient_updates,
