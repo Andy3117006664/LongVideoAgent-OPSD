@@ -76,6 +76,17 @@ class HFPolicy:
 
     @contextmanager
     def adapter(self, name: str):
+        if name == "base":
+            # A fixed-base reference shares the frozen backbone but bypasses
+            # every LoRA delta. It is not a second model or a trainable teacher.
+            # Teacher callers also use no_grad; always restore student state.
+            self.select("student")
+            try:
+                with self.model.disable_adapter():
+                    yield
+            finally:
+                self.select("student")
+            return
         self.select(name)
         try:
             yield
@@ -242,13 +253,19 @@ class HFPolicy:
         return value
 
     def hindsight_kl(self, completion: Completion, teacher_messages: list[dict],
-                     *, temperature: float):
+                     *, temperature: float, teacher_adapter: str = "teacher",
+                     token_mask: list[bool] | None = None):
         """Dense reverse KL on the *same* sampled student action prefixes."""
         if temperature <= 0:
             raise ValueError("training temperature must be positive")
+        if teacher_adapter not in {"teacher", "base"}:
+            raise ValueError("teacher adapter must be EMA or fixed base")
+        if token_mask is not None and (len(token_mask) != len(completion.token_ids)
+                or not all(type(x) is bool for x in token_mask) or not any(token_mask)):
+            raise ValueError("KL mask must select nonempty aligned original tokens")
         teacher_ids = self.prompt_ids(teacher_messages)
         self.model.eval()
-        with self.adapter("teacher"), torch.no_grad():
+        with self.adapter(teacher_adapter), torch.no_grad():
             teacher_hidden = self.hidden_for_response(teacher_ids, completion.token_ids).detach()
         self.select("student")
         self._scoring_mode()
@@ -259,7 +276,14 @@ class HFPolicy:
             student = torch.log_softmax(head(student_hidden[start:start + 32]).float() / temperature, -1)
             with torch.no_grad():
                 teacher = torch.log_softmax(head(teacher_hidden[start:start + 32]).float() / temperature, -1)
-            loss = loss + (student.exp() * (student - teacher)).sum()
+            matrix = student.exp() * (student - teacher)
+            if token_mask is None:
+                # Preserve the original full-completion reduction order.
+                loss = loss + matrix.sum()
+            else:
+                mask = torch.tensor(token_mask[start:start + 32], device=self.device, dtype=torch.bool)
+                loss = loss + matrix[mask].sum()
+        # Region ablations retain full N, never per-region renormalization.
         return loss / len(completion.token_ids)
 
     def _scoring_mode(self):

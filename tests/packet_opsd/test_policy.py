@@ -228,6 +228,105 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(all(value.grad is None and not value.requires_grad
                             for name, value in parameters.items() if ".teacher." in name))
 
+    def test_fixed_base_context_and_candidate_restore_student_even_on_error(self):
+        from peft.tuners.tuners_utils import BaseTunerLayer
+        layers = [m for m in self.policy.model.modules() if isinstance(m, BaseTunerLayer)]
+        self.assertTrue(layers)
+        with self.assertRaisesRegex(RuntimeError, "synthetic"):
+            with self.policy.adapter("base"):
+                self.assertTrue(all(m.disable_adapters for m in layers))
+                raise RuntimeError("synthetic")
+        self.assertTrue(all(not m.disable_adapters for m in layers))
+        self.policy.sample(self.messages, adapter="base", max_new_tokens=2, temperature=0.0)
+        self.assertTrue(all(not m.disable_adapters for m in layers))
+        for name, p in self.policy.model.named_parameters():
+            self.assertEqual(p.requires_grad, ".student." in name)
+
+    def test_fixed_base_target_is_independent_of_student_and_EMA_weights(self):
+        teacher_messages = self.messages + [{"role": "user", "content": "feedback"}]
+        ids = self.policy.prompt_ids(teacher_messages)
+        self.policy.model.eval()
+        def target():
+            with self.policy.adapter("base"), torch.no_grad():
+                hidden = self.policy.hidden_for_response(ids, [7, 11, 13])
+                return self.policy.model.get_base_model().lm_head(hidden).clone()
+        before = target()
+        with torch.no_grad():
+            for name, p in self.policy.model.named_parameters():
+                if ".student." in name or ".teacher." in name:
+                    p.fill_(0.125)
+        torch.testing.assert_close(target(), before, rtol=0, atol=0)
+        completion = Completion("", [7, 11, 13], self.policy.prompt_ids(self.messages), True)
+        loss = self.policy.hindsight_kl(completion, teacher_messages, temperature=.7, teacher_adapter="base")
+        loss.backward()
+        self.assertTrue(any(p.grad is not None for p in self.policy.parameters()))
+        self.assertTrue(all(p.grad is None for name, p in self.policy.model.named_parameters()
+                            if ".student." not in name))
+        self.assertTrue(all(not p.requires_grad for name, p in self.policy.model.named_parameters()
+                            if ".student." not in name))
+
+    def test_zero_initialized_base_and_EMA_teacher_targets_are_equal(self):
+        teacher_messages = self.messages + [{"role": "user", "content": "feedback"}]
+        ids = self.policy.prompt_ids(teacher_messages)
+        self.policy.model.eval()
+        targets = []
+        for adapter in ("base", "teacher"):
+            with self.policy.adapter(adapter), torch.no_grad():
+                hidden = self.policy.hidden_for_response(ids, [7, 11, 13])
+                targets.append(self.policy.model.get_base_model().lm_head(hidden).clone())
+        torch.testing.assert_close(targets[0], targets[1], rtol=0, atol=0)
+        self.assertTrue(all(not p.requires_grad for name, p in self.policy.model.named_parameters()
+                            if ".student." not in name))
+
+    def test_default_full_KL_and_gradient_keep_original_reduction_order(self):
+        teacher_messages = self.messages + [{"role": "user", "content": "feedback"}]
+        completion = Completion("", [7, 11, 13] * 20 + [7, 11, 13, 7, 11, 13, 7],
+                                self.policy.prompt_ids(self.messages), True)
+        actual = self.policy.hindsight_kl(completion, teacher_messages, temperature=.7)
+        actual_grad = torch.autograd.grad(actual, self.policy.parameters())
+        self.policy.model.eval()
+        with self.policy.adapter("teacher"), torch.no_grad():
+            teacher_hidden = self.policy.hidden_for_response(self.policy.prompt_ids(teacher_messages),
+                                                            completion.token_ids).detach()
+        self.policy._scoring_mode()
+        hidden = self.policy.hidden_for_response(completion.prompt_ids, completion.token_ids)
+        head = self.policy.model.get_base_model().lm_head
+        expected = hidden.sum() * 0.0
+        for start in range(0, len(completion.token_ids), 32):
+            student = torch.log_softmax(head(hidden[start:start + 32]).float() / .7, -1)
+            with torch.no_grad():
+                teacher = torch.log_softmax(head(teacher_hidden[start:start + 32]).float() / .7, -1)
+            expected = expected + (student.exp() * (student - teacher)).sum()
+        expected = expected / len(completion.token_ids)
+        torch.testing.assert_close(actual.detach(), expected.detach(), rtol=0, atol=0)
+        for a, b in zip(actual_grad, torch.autograd.grad(expected, self.policy.parameters())):
+            torch.testing.assert_close(a, b, rtol=0, atol=0)
+        masked = self.policy.hindsight_kl(completion, teacher_messages, temperature=.7,
+                                         token_mask=[True] * len(completion.token_ids))
+        torch.testing.assert_close(masked.detach(), actual.detach(), rtol=0, atol=0)
+        for a, b in zip(actual_grad, torch.autograd.grad(masked, self.policy.parameters())):
+            torch.testing.assert_close(a, b, rtol=0, atol=0)
+
+    def test_region_KL_uses_fullN_and_rejects_unaligned_or_empty_masks(self):
+        completion = Completion("", [7, 11, 13], self.policy.prompt_ids(self.messages), True)
+        teacher_messages = self.messages + [{"role": "user", "content": "feedback"}]
+        for mask in ([], [False] * 3, [1, 0, 1]):
+            with self.subTest(mask=mask), self.assertRaises(ValueError):
+                self.policy.hindsight_kl(completion, teacher_messages, temperature=.7, token_mask=mask)
+        mask = [False, True, False]
+        actual = self.policy.hindsight_kl(completion, teacher_messages, temperature=.7, token_mask=mask)
+        self.policy.model.eval()
+        with self.policy.adapter("teacher"), torch.no_grad():
+            t = self.policy.hidden_for_response(self.policy.prompt_ids(teacher_messages), completion.token_ids).detach()
+        self.policy._scoring_mode()
+        s = self.policy.hidden_for_response(completion.prompt_ids, completion.token_ids)
+        head = self.policy.model.get_base_model().lm_head
+        lp = head(s).float().div(.7).log_softmax(-1)
+        with torch.no_grad():
+            lq = head(t).float().div(.7).log_softmax(-1)
+        expected = (lp.exp() * (lp - lq))[torch.tensor(mask)].sum() / 3
+        torch.testing.assert_close(actual.detach(), expected.detach(), rtol=0, atol=0)
+
     def test_context_and_stochastic_score_guards(self):
         with self.assertRaises(ContextOverflow):
             self.policy.sample(self.messages, max_new_tokens=129)

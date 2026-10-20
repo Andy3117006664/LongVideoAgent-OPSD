@@ -18,6 +18,14 @@ from pathlib import Path
 from .objective import (INSPECTION_PREFIX, candidate_spans, hindsight_messages,
                         symmetric_packet_coefficients)
 from .identities import IdentityMapping, bound_mapping, resolve_identity_mapping
+from .completion_regions import CompletionRegionError, completion_region
+
+
+def teacher_adapter_name(reference: str) -> str:
+    """Use one reference consistently for candidate generation and token KL."""
+    if reference not in {"ema", "fixed-base"}:
+        raise ValueError("unknown teacher reference")
+    return "teacher" if reference == "ema" else "base"
 
 
 def configure_baseline(source: Path, *, inspector_endpoint: str, compactor_endpoint: str):
@@ -206,6 +214,10 @@ def main(argv=None):
     parser.add_argument("--bandwidth", type=float, default=1.0)
     parser.add_argument("--learning-rate", type=float, default=1e-5)
     parser.add_argument("--ema-decay", type=float, default=0.99)
+    parser.add_argument("--teacher-reference", choices=("ema", "fixed-base"), default="ema",
+                        help="EMA adapter or frozen base with all adapters disabled; neither uses Gold")
+    parser.add_argument("--kl-region", choices=("full", "action", "arguments"), default="full",
+                        help="experimental original-token mask; all choices retain the full-N divisor")
     parser.add_argument("--rank", type=int, default=8)
     parser.add_argument("--seed", type=int, default=20261018)
     parser.add_argument("--save-every", type=int, default=10)
@@ -217,6 +229,7 @@ def main(argv=None):
     overlap.add_argument("--training-split-policy", choices=("video-disjoint", "question-disjoint"),
                          default="video-disjoint")
     args = parser.parse_args(argv)
+    teacher_adapter = teacher_adapter_name(args.teacher_reference)
     if (min(args.steps, args.max_attempts, args.records_per_step, args.candidate_tokens) < 1
             or args.temperature <= 0 or args.packet_weight < 0 or args.learning_rate <= 0
             or args.bandwidth <= 0 or not 0 <= args.ema_decay < 1
@@ -242,6 +255,13 @@ def main(argv=None):
                    "training_gold_used": False, "candidate_tool_calls": 0,
                    "candidate_draws_per_record": {"student": 2, "teacher": 1},
                    "packet_estimator": "symmetric-score-function",
+                   "token_kl_direction": "KL(student || stop-gradient teacher)",
+                   "token_kl_denominator": "full-original-completion-length",
+                   "teacher_information": "unchanged-natural-inspection-feedback-HF",
+                   "teacher_adapter": teacher_adapter,
+                   "teacher_saved_adapter_usage": ("active-EMA" if args.teacher_reference == "ema"
+                                                   else "unused-in-fixed-base-mode"),
+                   "kl_region_status": "experimental-ablation-not-validated-repair",
                    "rollout_collection": ("first-eligible-training-prefix" if args.collect_training_prefix
                                           else "complete-original-trajectory"),
                    "gradient_combination": "token-KL plus relative-norm-capped packet auxiliary",
@@ -287,7 +307,18 @@ def main(argv=None):
                             append(args.output / "metrics.jsonl", {"event": "skip_packet_parity", "attempt": attempts,
                                                                    "uid_hash": uid_hash})
                         continue
-                    records.append(record)
+                    try:
+                        selection = completion_region(policy.tokenizer, record["completion"],
+                            region=args.kl_region, eos_token_ids=policy._eos_token_ids())
+                    except CompletionRegionError as exc:
+                        append(args.output / "metrics.jsonl", {"event": "skip_kl_region", "attempt": attempts,
+                            "uid_hash": uid_hash, "step_index": record["step_index"],
+                            "kl_region": args.kl_region, "reason": str(exc)})
+                        continue
+                    # Keep training metadata outside the unchanged agent record.
+                    selected_record = dict(record)
+                    selected_record["_kl_selection"] = selection
+                    records.append(selected_record)
                     if len(records) >= args.records_per_step:
                         break
                 if not records:
@@ -305,12 +336,13 @@ def main(argv=None):
                                           max_new_tokens=args.candidate_tokens, temperature=args.temperature)
                         ap = policy.sample(record["messages"], prefix=INSPECTION_PREFIX,
                                            max_new_tokens=args.candidate_tokens, temperature=args.temperature)
-                        b = policy.sample(teacher_messages, adapter="teacher", prefix=INSPECTION_PREFIX,
+                        b = policy.sample(teacher_messages, adapter=teacher_adapter, prefix=INSPECTION_PREFIX,
                                           max_new_tokens=args.candidate_tokens, temperature=args.temperature)
                     finally:
                         policy.audit_generation_scores = False
                     append(args.output / "candidate_audit.private.jsonl", {
                         "attempt": attempts, "uid_hash": uid_hash, "step_index": record["step_index"],
+                        "teacher_reference": args.teacher_reference,
                         "completions": [{"role": role, "text": c.text, "complete": c.complete,
                                          "token_count": len(c.token_ids),
                                          "stop_reason": getattr(c, "stop_reason", None),
@@ -322,10 +354,15 @@ def main(argv=None):
                 optimizer.zero_grad(set_to_none=True)
                 values = []
                 for record, teacher_messages, candidates, packets, coefficients in groups:
-                    kl = policy.hindsight_kl(record["completion"], teacher_messages, temperature=args.temperature)
+                    selection = record["_kl_selection"]
+                    kl = policy.hindsight_kl(record["completion"], teacher_messages,
+                        temperature=args.temperature, teacher_adapter=teacher_adapter, token_mask=selection.mask)
                     kl_value = float(kl.detach())
                     (kl / len(groups)).backward()
-                    values.append({"reverse_kl": kl_value})
+                    values.append({"reverse_kl": kl_value, "kl_region": selection.region,
+                        "kl_full_tokens": selection.full_tokens, "kl_selected_tokens": selection.selected_tokens,
+                        "kl_boundary_tokens_excluded": selection.boundary_tokens_excluded,
+                        "teacher_reference": args.teacher_reference})
                 # Compute the two objectives separately. Never infer the packet
                 # gradient from a difference against a much larger accumulated
                 # gradient, and do not change sequence scores to token means.
@@ -373,14 +410,16 @@ def main(argv=None):
                                                            "uid_hash": uid_hash, "records": values, **increment})
                     continue
                 optimizer.step()
-                policy.update_teacher(args.ema_decay)
+                if args.teacher_reference == "ema":
+                    policy.update_teacher(args.ema_decay)
                 updates += 1
                 total_records += len(groups)
                 nonzero_packet += sum(any(v["packet_score_terms_applied"]) for v in values)
                 packet_gradient_updates += int(increment["packet_gradient_norm"] > 0)
                 row = {"event": "update", "step": updates, "attempt": attempts, "uid_hash": uid_hash,
                        "gradient_norm": float(norm), "records": values,
-                       "candidate_tool_calls": 0, "ema_updated": True, **increment}
+                       "candidate_tool_calls": 0, "teacher_reference": args.teacher_reference,
+                       "kl_region": args.kl_region, "ema_updated": args.teacher_reference == "ema", **increment}
                 append(args.output / "metrics.jsonl", row)
                 print(json.dumps(row, allow_nan=False), flush=True)
                 if updates % args.save_every == 0:

@@ -70,6 +70,50 @@ adaptive optimization rule: the combined direction is not claimed to remain
 an unbiased gradient of one fixed weighted scalar MMD loss. A zero combined
 gradient skips that attempt without an optimizer or EMA update.
 
+## Opt-in teacher and token-region ablations
+
+The defaults remain `--teacher-reference ema --kl-region full`. The following
+switches are experiment controls, not a validated repair or evidence of improved
+QA. Keep the same harness and held-out protocol when comparing them.
+
+- `--teacher-reference fixed-base` disables all LoRA adapters only inside the
+  teacher context. The frozen pretrained backbone supplies both the hindsight
+  candidate `b` and the token-KL target `q`; it sees the same H/F as the EMA
+  teacher. No EMA update is performed. The ordinary student adapter is restored
+  on context exit, including exceptions. This is a fixed base with privileged
+  generated feedback, not a teacher supplied with ground-truth answers. The
+  saved `teacher/` adapter is unused in this mode; config records that fact.
+- `--kl-region action` selects whole original tokens inside the actual complete
+  `<tool_call>…</tool_call>` range. `--kl-region arguments` selects only whole
+  tokens inside the JSON `arguments` object. Neither includes EOS or tokens
+  crossing its character boundary. They preserve the **full original completion
+  length** as divisor; there is no segment-length rescaling or norm matching.
+
+The KL direction stays `KL(student || stop-gradient teacher)` on the original
+factual student's token prefixes. Non-full masks require a fast tokenizer and
+an exact full-special-token decode/re-encode round trip with offsets. An
+incomplete/ambiguous/multiple call, unsupported offset or empty mask is recorded
+as `skip_kl_region` before the three text candidates are drawn; it never silently
+falls back to full KL or rejection-resamples that record. The whole completion
+must contain exactly one opener and one closer; a quoted call before `</think>`
+and a later call are rejected so masking cannot select a different call from the
+existing harness's first-call parser. Prefix collection and
+the agent/tool budget are unchanged. Public metrics add only the reference,
+region, selected/full token counts and boundary exclusions.
+
+Changing teacher weights, giving it H/F rather than H, forcing the inspection
+prefix, and choosing a supervised region are separate axes. These switches
+change the first and fourth axes only. The factual token KL still conditions on
+the naturally sampled reasoning/action prefix. The packet candidates still use
+the original fixed `INSPECTION_PREFIX`; region masking does not make those two
+conditional distributions identical. An action mask also removes other
+non-action terms, so a difference cannot uniquely identify reasoning as the
+cause. A well-formed candidate or confident teacher is not a correctness label.
+
+LoRA rank/targets/alpha, base+student inference, H/F construction, candidate
+prefixes/counts, sampler and all environment tools remain the existing ones.
+Do not combine axes and interpret the outcome as a single identified cause.
+
 ## What the packet identity does and does not establish
 
 The original sampler normalizes windows to at least 15 seconds, takes an
